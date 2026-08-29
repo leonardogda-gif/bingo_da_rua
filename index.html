@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#2563eb" />
+  <title>Bingo da Rua Multiplayer</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f5f7fb;
+      --card:#fff;
+      --text:#172033;
+      --muted:#64748b;
+      --border:#e2e8f0;
+      --primary:#2563eb;
+      --primary-soft:#dbeafe;
+      --success:#16a34a;
+      --success-soft:#dcfce7;
+      --danger:#dc2626;
+      --shadow:0 12px 30px rgba(15,23,42,.08);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:
+        radial-gradient(circle at top left,#dbeafe 0,transparent 30%),
+        radial-gradient(circle at top right,#dcfce7 0,transparent 25%),
+        linear-gradient(180deg,#fbfdff,var(--bg));
+      color:var(--text);
+      min-height:100vh;
+    }
+    button,input{font:inherit}
+    .app{width:min(980px,100%);margin:0 auto;padding:18px 14px 40px}
+    .hero{display:flex;gap:14px;align-items:center;margin-bottom:18px}
+    .logo{width:58px;height:58px;border-radius:19px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#60a5fa);color:white;font-size:27px;box-shadow:var(--shadow)}
+    h1{margin:0;font-size:clamp(1.6rem,5vw,2.2rem);line-height:1}
+    .subtitle{margin:6px 0 0;color:var(--muted);font-size:.93rem}
+    .panel{background:rgba(255,255,255,.95);border:1px solid var(--border);border-radius:24px;padding:16px;box-shadow:var(--shadow)}
+    .hidden{display:none!important}
+    .screen-title{margin:0 0 4px;font-size:1.2rem}
+    .screen-sub{margin:0 0 16px;color:var(--muted);font-size:.9rem;line-height:1.4}
+
+    .home-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .big-action{border:1px solid var(--border);background:white;border-radius:18px;min-height:110px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;font-weight:850;color:var(--text)}
+    .big-action i{font-size:28px;color:var(--primary)}
+    .big-action.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+    .big-action.primary i{color:#fff}
+
+    .btn{border:0;border-radius:15px;min-height:48px;padding:0 16px;font-weight:850;cursor:pointer}
+    .btn-primary{background:var(--primary);color:white}
+    .btn-secondary{background:#f1f5f9;color:var(--text);border:1px solid var(--border)}
+    .btn-success{background:var(--success);color:white}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .field{width:100%;min-height:48px;border:1px solid var(--border);border-radius:14px;padding:0 13px;font-size:16px;background:white;color:var(--text)}
+    .lobby-grid{display:grid;grid-template-columns:280px 1fr;gap:16px}
+    .qr-card{border:1px solid var(--border);border-radius:20px;padding:14px;text-align:center;background:#f8fafc}
+    #qrcode{display:flex;justify-content:center;margin:12px auto}
+    #qrcode canvas,#qrcode img{max-width:100%;height:auto}
+    .room-code{font-size:1.25rem;font-weight:900;letter-spacing:.08em;color:var(--primary);word-break:break-all}
+    .share-link{font-size:.77rem;color:var(--muted);word-break:break-all;line-height:1.3}
+
+    .players{display:grid;gap:8px}
+    .player{border:1px solid var(--border);border-radius:14px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:white}
+    .player .name{font-weight:800}
+    .player small{color:var(--muted)}
+    .dot{width:10px;height:10px;border-radius:50%;background:var(--success);flex:0 0 auto}
+
+    .categories{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+    .category{border:1px solid var(--border);background:white;border-radius:14px;min-height:48px;cursor:pointer;font-weight:800}
+    .category.active{background:var(--primary-soft);border-color:#93c5fd;color:#1d4ed8}
+
+    .game-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+    .mode{font-size:.78rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:var(--primary)}
+    .progress{font-size:1.05rem;font-weight:900;margin-top:3px}
+    .badge{border:1px solid var(--border);border-radius:999px;background:#f8fafc;padding:8px 12px;color:#475569;font-size:.82rem;font-weight:800}
+
+    .board{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+    .tile{min-width:0;aspect-ratio:1/1.04;position:relative;border:1px solid var(--border);border-radius:18px;background:linear-gradient(180deg,#fff,#f8fafc);padding:8px 5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;color:var(--text)}
+    .tile.selected{background:var(--success-soft);border-color:#86efac}
+    .bubble{width:52px;height:52px;border-radius:17px;display:grid;place-items:center;color:white;font-size:25px}
+    .c1{background:linear-gradient(135deg,#3b82f6,#60a5fa)}
+    .c2{background:linear-gradient(135deg,#22c55e,#4ade80)}
+    .c3{background:linear-gradient(135deg,#f59e0b,#fbbf24)}
+    .c4{background:linear-gradient(135deg,#8b5cf6,#a78bfa)}
+    .c5{background:linear-gradient(135deg,#ef4444,#fb7185)}
+    .c6{background:linear-gradient(135deg,#06b6d4,#22d3ee)}
+    .tile-name{font-size:.72rem;font-weight:850;line-height:1.15;text-align:center;overflow-wrap:anywhere}
+    .check{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--success);color:white;font-size:11px;opacity:0;transform:scale(.8)}
+    .tile.selected .check{opacity:1;transform:scale(1)}
+    .status{margin-top:12px;border:1px solid var(--border);border-radius:15px;padding:12px 13px;background:#f8fafc;color:#475569;font-weight:700}
+    .status.bingo{background:var(--success-soft);border-color:#86efac;color:#166534}
+    .toast{margin-top:10px;border-radius:14px;padding:11px 12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:750}
+    .footer{text-align:center;color:var(--muted);font-size:.76rem;margin-top:12px}
+
+    @media(max-width:720px){
+      .home-actions{grid-template-columns:1fr}
+      .big-action{min-height:86px;flex-direction:row;justify-content:flex-start;padding-left:18px}
+      .lobby-grid{grid-template-columns:1fr}
+      .qr-card{max-width:360px;margin:0 auto;width:100%}
+      .board{gap:6px}
+      .tile{border-radius:15px;padding:6px 3px}
+      .bubble{width:43px;height:43px;border-radius:14px;font-size:21px}
+      .tile-name{font-size:.63rem}
+    }
+    @media(max-width:390px){
+      .app{padding-left:9px;padding-right:9px}
+      .panel{padding:11px;border-radius:20px}
+      .bubble{width:38px;height:38px;border-radius:12px;font-size:18px}
+      .tile-name{font-size:.56rem}
+    }
+  </style>
+</head>
+
+<body>
+<main class="app">
+  <header class="hero">
+    <div class="logo"><i class="fa-solid fa-car-side"></i></div>
+    <div>
+      <h1>Bingo da Rua</h1>
+      <p class="subtitle">Agora com partida multiplayer por link e QR Code.</p>
+    </div>
+  </header>
+
+  <section id="homeScreen" class="panel">
+    <h2 class="screen-title">Como você quer jogar?</h2>
+    <p class="screen-sub">Para jogar com outras pessoas, todos precisam estar conectados à internet.</p>
+
+    <div class="home-actions">
+      <button id="soloBtn" class="big-action" type="button">
+        <i class="fa-solid fa-user"></i>
+        <span>Jogar sozinho</span>
+      </button>
+
+      <button id="hostBtn" class="big-action primary" type="button">
+        <i class="fa-solid fa-users"></i>
+        <span>Criar partida</span>
+      </button>
+
+      <button id="joinBtn" class="big-action" type="button">
+        <i class="fa-solid fa-qrcode"></i>
+        <span>Entrar na partida</span>
+      </button>
+    </div>
+  </section>
+
+  <section id="nameScreen" class="panel hidden">
+    <h2 id="nameTitle" class="screen-title">Seu nome</h2>
+    <p id="nameSub" class="screen-sub">Escolha um nome ou apelido para aparecer na sala.</p>
+
+    <input id="playerName" class="field" maxlength="18" placeholder="Ex.: Olivia" autocomplete="off">
+    <div class="row" style="margin-top:12px">
+      <button id="continueName" class="btn btn-primary" type="button">Continuar</button>
+      <button id="backName" class="btn btn-secondary" type="button">Voltar</button>
+    </div>
+  </section>
+
+  <section id="joinScreen" class="panel hidden">
+    <h2 class="screen-title">Entrar na partida</h2>
+    <p class="screen-sub">Se você abriu o link pelo QR Code, a sala será preenchida automaticamente.</p>
+
+    <input id="roomInput" class="field" placeholder="Cole o código da sala">
+    <div class="row" style="margin-top:12px">
+      <button id="connectBtn" class="btn btn-primary" type="button">Entrar</button>
+      <button id="backJoin" class="btn btn-secondary" type="button">Voltar</button>
+    </div>
+    <div id="joinError" class="toast hidden"></div>
+  </section>
+
+  <section id="lobbyScreen" class="panel hidden">
+    <h2 class="screen-title">Sala da partida</h2>
+    <p id="lobbyHint" class="screen-sub"></p>
+
+    <div class="lobby-grid">
+      <div id="hostShareBox" class="qr-card hidden">
+        <strong>Escaneie para entrar</strong>
+        <div id="qrcode"></div>
+        <div id="roomCode" class="room-code"></div>
+        <div id="shareLink" class="share-link"></div>
+      </div>
+
+      <div>
+        <strong>Jogadores</strong>
+        <div id="players" class="players" style="margin-top:9px"></div>
+
+        <div id="hostControls" class="hidden">
+          <div class="categories">
+            <button class="category active" data-category="Rua" type="button"><i class="fa-solid fa-city"></i> Rua</button>
+            <button class="category" data-category="Estrada" type="button"><i class="fa-solid fa-road"></i> Estrada</button>
+            <button class="category" data-category="Parque" type="button"><i class="fa-solid fa-tree"></i> Parque</button>
+          </div>
+          <button id="startGameBtn" class="btn btn-success" type="button">Começar partida</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="gameScreen" class="panel hidden">
+    <div class="game-head">
+      <div>
+        <div id="currentCategory" class="mode">Rua</div>
+        <div id="progress" class="progress">0 de 16 encontrados</div>
+      </div>
+      <div id="lines" class="badge">0 linhas completas</div>
+    </div>
+
+    <div id="board" class="board"></div>
+    <div id="status" class="status">Toque em um item quando você encontrá-lo.</div>
+    <div id="winnerToast" class="toast hidden"></div>
+  </section>
+
+  <div class="footer">Bingo da Rua • Multiplayer experimental V1.2</div>
+</main>
+
+<script>
+const banks = {
+  Rua: [
+    ["fa-traffic-light","Semáforo"],["fa-bus-simple","Ônibus"],["fa-dog","Cachorro"],["fa-bicycle","Bicicleta"],
+    ["fa-tree","Árvore"],["fa-truck","Caminhão"],["fa-motorcycle","Moto"],["fa-gas-pump","Posto"],
+    ["fa-taxi","Táxi"],["fa-school","Escola"],["fa-truck-medical","Ambulância"],["fa-bridge","Ponte"],
+    ["fa-person-digging","Obra"],["fa-shield-halved","Polícia"],["fa-dove","Pássaro"],["fa-cart-shopping","Mercado"],
+    ["fa-door-open","Portão"],["fa-building","Prédio"],["fa-box","Motoboy"],["fa-square-parking","Estacionamento"],
+    ["fa-person-walking","Pedestre"],["fa-hospital","Hospital"],["fa-seedling","Flor"],["fa-truck-moving","Carreta"]
+  ],
+  Estrada: [
+    ["fa-truck-moving","Carreta"],["fa-gas-pump","Posto"],["fa-bridge","Ponte"],["fa-person-digging","Obra"],
+    ["fa-bus-simple","Ônibus"],["fa-shield-halved","Polícia"],["fa-cow","Vaca"],["fa-wheat-awn","Plantação"],
+    ["fa-mountain","Morro"],["fa-car-side","SUV"],["fa-money-bill","Pedágio"],["fa-industry","Fábrica"],
+    ["fa-tractor","Trator"],["fa-horse","Cavalo"],["fa-cloud","Nuvem"],["fa-sign-hanging","Placa"],
+    ["fa-tree","Árvore grande"],["fa-van-shuttle","Van"],["fa-house","Cidade pequena"],["fa-road-bridge","Viaduto"],
+    ["fa-dove","Pássaro"],["fa-car","Carro vermelho"],["fa-truck","Caminhão"],["fa-store","Loja de estrada"]
+  ],
+  Parque: [
+    ["fa-tree","Árvore"],["fa-dove","Pássaro"],["fa-dog","Cachorro"],["fa-bicycle","Bicicleta"],
+    ["fa-futbol","Bola"],["fa-child-reaching","Brinquedo"],["fa-seedling","Flor"],["fa-bug","Borboleta"],
+    ["fa-bug","Formiga"],["fa-chair","Banco"],["fa-person-running","Pessoa correndo"],["fa-person-biking","Patinete"],
+    ["fa-basket-shopping","Piquenique"],["fa-leaf","Grama"],["fa-water","Fonte"],["fa-hat-cowboy","Boné"],
+    ["fa-wind","Pipa"],["fa-paw","Animal pequeno"],["fa-bottle-water","Garrafa"],["fa-shoe-prints","Tênis colorido"],
+    ["fa-cloud-sun","Sol entre nuvens"],["fa-balloon","Balão"],["fa-person-skating","Skate"],["fa-people-roof","Família"]
+  ]
+};
+
+const screens=["homeScreen","nameScreen","joinScreen","lobbyScreen","gameScreen"];
+const $=id=>document.getElementById(id);
+function show(id){ screens.forEach(s=>$(s).classList.toggle("hidden",s!==id)); }
+
+let mode="solo";
+let playerName="";
+let peer=null;
+let hostConnection=null;
+let clientConnections=[];
+let hostPeerId="";
+let category="Rua";
+let sharedItems=[];
+let cards=[];
+let selected=new Set();
+let hasWon=false;
+let playerSeed="";
+
+function randomId(){
+  return "bdr-" + Math.random().toString(36).slice(2,7) + "-" + Date.now().toString(36).slice(-4);
+}
+function shuffle(list, seedText=""){
+  const a=[...list];
+  let seed=0;
+  for(let i=0;i<seedText.length;i++) seed=(seed*31+seedText.charCodeAt(i))>>>0;
+  function rnd(){
+    seed=(1664525*seed+1013904223)>>>0;
+    return seed/4294967296;
+  }
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor((seedText?rnd():Math.random())*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+function winningLines(){
+  const x=[];
+  for(let r=0;r<4;r++) x.push([r*4,r*4+1,r*4+2,r*4+3]);
+  for(let c=0;c<4;c++) x.push([c,c+4,c+8,c+12]);
+  x.push([0,5,10,15],[3,6,9,12]);
+  return x;
+}
+function completeLines(){
+  return winningLines().filter(line=>line.every(i=>selected.has(i)));
+}
+
+function getJoinUrl(id){
+  const url=new URL(location.href);
+  url.search="";
+  url.hash="";
+  url.searchParams.set("room",id);
+  return url.toString();
+}
+
+function startPeerAsHost(){
+  hostPeerId=randomId();
+  peer=new Peer(hostPeerId);
+  peer.on("open",id=>{
+    hostPeerId=id;
+    renderHostLobby();
+  });
+  peer.on("connection",conn=>{
+    clientConnections.push(conn);
+    setupHostConnection(conn);
+  });
+  peer.on("error",err=>{
+    $("lobbyHint").textContent="Não foi possível criar a sala. Verifique a internet e tente novamente.";
+    console.error(err);
+  });
+}
+
+function setupHostConnection(conn){
+  conn.on("data",data=>{
+    if(data.type==="hello"){
+      conn.playerName=data.name || "Jogador";
+      conn.playerSeed=data.seed || conn.peer;
+      broadcastPlayers();
+    }
+    if(data.type==="bingo"){
+      broadcast({type:"winner",name:data.name});
+      announceWinner(data.name);
+    }
+  });
+  conn.on("close",()=>{
+    clientConnections=clientConnections.filter(c=>c!==conn);
+    broadcastPlayers();
+  });
+}
+
+function renderHostLobby(){
+  show("lobbyScreen");
+  $("hostShareBox").classList.remove("hidden");
+  $("hostControls").classList.remove("hidden");
+  $("lobbyHint").textContent="Mostre este QR Code aos outros jogadores.";
+  $("roomCode").textContent=hostPeerId;
+  const link=getJoinUrl(hostPeerId);
+  $("shareLink").textContent=link;
+  $("qrcode").innerHTML="";
+  new QRCode($("qrcode"),{text:link,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});
+  broadcastPlayers();
+}
+
+function broadcast(data){
+  clientConnections.forEach(c=>{
+    if(c.open) c.send(data);
+  });
+}
+
+function currentPlayers(){
+  return [{name:playerName,host:true}].concat(
+    clientConnections.filter(c=>c.open && c.playerName).map(c=>({name:c.playerName,host:false}))
+  );
+}
+
+function broadcastPlayers(){
+  const list=currentPlayers();
+  renderPlayers(list);
+  broadcast({type:"players",players:list});
+}
+
+function renderPlayers(list){
+  $("players").innerHTML=list.map(p=>`
+    <div class="player">
+      <div>
+        <div class="name">${escapeHtml(p.name)}</div>
+        <small>${p.host?"Anfitrião":"Jogador"}</small>
+      </div>
+      <span class="dot"></span>
+    </div>`).join("");
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+
+function joinRoom(roomId){
+  $("joinError").classList.add("hidden");
+  peer=new Peer();
+  peer.on("open",()=>{
+    hostConnection=peer.connect(roomId,{reliable:true});
+    hostConnection.on("open",()=>{
+      playerSeed=peer.id;
+      hostConnection.send({type:"hello",name:playerName,seed:playerSeed});
+      show("lobbyScreen");
+      $("hostShareBox").classList.add("hidden");
+      $("hostControls").classList.add("hidden");
+      $("lobbyHint").textContent="Você entrou na sala. Aguarde o anfitrião começar.";
+    });
+    hostConnection.on("data",handleClientData);
+    hostConnection.on("close",()=>{
+      $("lobbyHint").textContent="A conexão com o anfitrião foi encerrada.";
+    });
+    hostConnection.on("error",showJoinError);
+  });
+  peer.on("error",showJoinError);
+}
+
+function showJoinError(err){
+  show("joinScreen");
+  $("joinError").classList.remove("hidden");
+  $("joinError").textContent="Não foi possível entrar nessa sala. Confirme o link/código e tente novamente.";
+  console.error(err);
+}
+
+function handleClientData(data){
+  if(data.type==="players") renderPlayers(data.players||[]);
+  if(data.type==="start"){
+    category=data.category;
+    sharedItems=data.items;
+    cards=shuffle(sharedItems,playerSeed || playerName);
+    selected=new Set();
+    hasWon=false;
+    startGameScreen();
+  }
+  if(data.type==="winner") announceWinner(data.name);
+}
+
+function startHostedGame(){
+  sharedItems=shuffle(banks[category]).slice(0,16);
+  cards=shuffle(sharedItems,"host-"+hostPeerId);
+  selected=new Set();
+  hasWon=false;
+  broadcast({type:"start",category,items:sharedItems});
+  startGameScreen();
+}
+
+function startSoloGame(){
+  sharedItems=shuffle(banks[category]).slice(0,16);
+  cards=shuffle(sharedItems);
+  selected=new Set();
+  hasWon=false;
+  startGameScreen();
+}
+
+function startGameScreen(){
+  show("gameScreen");
+  $("currentCategory").textContent=category;
+  $("winnerToast").classList.add("hidden");
+  renderBoard();
+  updateGame();
+}
+
+function renderBoard(){
+  $("board").innerHTML="";
+  cards.forEach((item,index)=>{
+    const [icon,name]=item;
+    const btn=document.createElement("button");
+    btn.type="button";
+    btn.className="tile"+(selected.has(index)?" selected":"");
+    btn.setAttribute("aria-pressed",selected.has(index)?"true":"false");
+    btn.innerHTML=`
+      <span class="check"><i class="fa-solid fa-check"></i></span>
+      <span class="bubble c${(index%6)+1}"><i class="fa-solid ${icon}"></i></span>
+      <span class="tile-name">${escapeHtml(name)}</span>
+    `;
+    btn.addEventListener("click",()=>{
+      if(selected.has(index)) selected.delete(index);
+      else selected.add(index);
+      renderBoard();
+      updateGame();
+    });
+    $("board").appendChild(btn);
+  });
+}
+
+function updateGame(){
+  const complete=completeLines();
+  $("progress").textContent=`${selected.size} de 16 encontrados`;
+  $("lines").textContent=`${complete.length} ${complete.length===1?"linha completa":"linhas completas"}`;
+  $("status").classList.toggle("bingo",complete.length>0);
+
+  if(complete.length>0){
+    $("status").textContent="🎉 BINGO! Você completou uma linha, coluna ou diagonal!";
+    if(!hasWon){
+      hasWon=true;
+      if(mode==="host"){
+        broadcast({type:"winner",name:playerName});
+        announceWinner(playerName);
+      }else if(mode==="join" && hostConnection && hostConnection.open){
+        hostConnection.send({type:"bingo",name:playerName});
+      }else{
+        announceWinner(playerName || "Você");
+      }
+    }
+  }else if(selected.size===0){
+    $("status").textContent="Toque em um item quando você encontrá-lo.";
+  }else{
+    $("status").textContent=`Boa! Você já encontrou ${selected.size} ${selected.size===1?"item":"itens"}.`;
+  }
+}
+
+function announceWinner(name){
+  $("winnerToast").textContent=`🏆 ${name} fez BINGO!`;
+  $("winnerToast").classList.remove("hidden");
+}
+
+$("soloBtn").addEventListener("click",()=>{
+  mode="solo";
+  $("nameTitle").textContent="Seu nome";
+  $("nameSub").textContent="Escolha um nome ou apelido.";
+  show("nameScreen");
+});
+$("hostBtn").addEventListener("click",()=>{
+  mode="host";
+  $("nameTitle").textContent="Criar partida";
+  $("nameSub").textContent="Digite seu nome. Depois vamos gerar o QR Code da sala.";
+  show("nameScreen");
+});
+$("joinBtn").addEventListener("click",()=>{
+  mode="join";
+  $("nameTitle").textContent="Entrar na partida";
+  $("nameSub").textContent="Digite seu nome para entrar na sala.";
+  show("nameScreen");
+});
+$("backName").addEventListener("click",()=>show("homeScreen"));
+$("backJoin").addEventListener("click",()=>show("homeScreen"));
+
+$("continueName").addEventListener("click",()=>{
+  playerName=$("playerName").value.trim() || "Jogador";
+  if(mode==="solo"){
+    category="Rua";
+    startSoloGame();
+  }else if(mode==="host"){
+    show("lobbyScreen");
+    $("lobbyHint").textContent="Criando a sala...";
+    $("hostShareBox").classList.add("hidden");
+    $("hostControls").classList.add("hidden");
+    startPeerAsHost();
+  }else{
+    show("joinScreen");
+    const urlRoom=new URL(location.href).searchParams.get("room");
+    if(urlRoom) $("roomInput").value=urlRoom;
+  }
+});
+
+$("connectBtn").addEventListener("click",()=>{
+  const room=$("roomInput").value.trim();
+  if(!room){
+    $("joinError").classList.remove("hidden");
+    $("joinError").textContent="Digite ou abra um código de sala válido.";
+    return;
+  }
+  joinRoom(room);
+});
+
+document.querySelectorAll(".category").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    category=btn.dataset.category;
+    document.querySelectorAll(".category").forEach(x=>x.classList.toggle("active",x===btn));
+  });
+});
+
+$("startGameBtn").addEventListener("click",startHostedGame);
+
+(function autoJoinFromQr(){
+  const room=new URL(location.href).searchParams.get("room");
+  if(room){
+    mode="join";
+    $("nameTitle").textContent="Você foi convidado!";
+    $("nameSub").textContent="Digite seu nome para entrar nessa partida.";
+    $("roomInput").value=room;
+    show("nameScreen");
+  }
+})();
+</script>
+</body>
+</html>
