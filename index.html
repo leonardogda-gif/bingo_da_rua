@@ -216,7 +216,7 @@
     <div id="winnerToast" class="toast hidden"></div>
   </section>
 
-  <div class="footer">Bingo da Rua • Multiplayer experimental V1.2</div>
+  <div class="footer">Bingo da Rua • Multiplayer experimental V1.3</div>
 </main>
 
 <script>
@@ -262,6 +262,7 @@ let sharedItems=[];
 let cards=[];
 let selected=new Set();
 let hasWon=false;
+let gameOver=false;
 let playerSeed="";
 
 function randomId(){
@@ -325,8 +326,11 @@ function setupHostConnection(conn){
       broadcastPlayers();
     }
     if(data.type==="bingo"){
-      broadcast({type:"winner",name:data.name});
-      announceWinner(data.name);
+      if(!gameOver){
+        gameOver=true;
+        broadcast({type:"winner",name:data.name});
+        endGame(data.name);
+      }
     }
   });
   conn.on("close",()=>{
@@ -420,7 +424,9 @@ function handleClientData(data){
     hasWon=false;
     startGameScreen();
   }
-  if(data.type==="winner") announceWinner(data.name);
+  if(data.type==="winner"){
+    endGame(data.name);
+  }
 }
 
 function startHostedGame(){
@@ -428,6 +434,7 @@ function startHostedGame(){
   cards=shuffle(sharedItems,"host-"+hostPeerId);
   selected=new Set();
   hasWon=false;
+  gameOver=false;
   broadcast({type:"start",category,items:sharedItems});
   startGameScreen();
 }
@@ -437,6 +444,7 @@ function startSoloGame(){
   cards=shuffle(sharedItems);
   selected=new Set();
   hasWon=false;
+  gameOver=false;
   startGameScreen();
 }
 
@@ -461,7 +469,14 @@ function renderBoard(){
       <span class="bubble c${(index%6)+1}"><i class="fa-solid ${icon}"></i></span>
       <span class="tile-name">${escapeHtml(name)}</span>
     `;
+    if(gameOver){
+      btn.disabled=true;
+      btn.style.cursor="not-allowed";
+      btn.style.opacity=".72";
+    }
+
     btn.addEventListener("click",()=>{
+      if(gameOver) return;
       if(selected.has(index)) selected.delete(index);
       else selected.add(index);
       renderBoard();
@@ -479,15 +494,20 @@ function updateGame(){
 
   if(complete.length>0){
     $("status").textContent="🎉 BINGO! Você completou uma linha, coluna ou diagonal!";
-    if(!hasWon){
+    if(!hasWon && !gameOver){
       hasWon=true;
+
       if(mode==="host"){
+        gameOver=true;
         broadcast({type:"winner",name:playerName});
-        announceWinner(playerName);
+        endGame(playerName);
       }else if(mode==="join" && hostConnection && hostConnection.open){
+        gameOver=true;
         hostConnection.send({type:"bingo",name:playerName});
+        endGame(playerName);
       }else{
-        announceWinner(playerName || "Você");
+        gameOver=true;
+        endGame(playerName || "Você");
       }
     }
   }else if(selected.size===0){
@@ -498,8 +518,18 @@ function updateGame(){
 }
 
 function announceWinner(name){
-  $("winnerToast").textContent=`🏆 ${name} fez BINGO!`;
+  $("winnerToast").textContent=`🏆 ${name} fez BINGO! Partida encerrada.`;
   $("winnerToast").classList.remove("hidden");
+}
+
+function endGame(name){
+  gameOver=true;
+  announceWinner(name);
+
+  $("status").classList.add("bingo");
+  $("status").textContent=`🏁 Partida encerrada — ${name} venceu!`;
+
+  renderBoard();
 }
 
 $("soloBtn").addEventListener("click",()=>{
