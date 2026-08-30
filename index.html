@@ -4,10 +4,39 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2563eb">
-  <title>Bingo da Rua V1.10</title>
+  <title>Bingo da Rua V1.13</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js">
+
+$("winnerRestartBtn").addEventListener("click",()=>{
+  const btn=$("winnerRestartBtn");
+
+  if(mode==="solo"){
+    startSoloGame();
+    return;
+  }
+
+  if(mode==="host"){
+    startHostedGame();
+    return;
+  }
+
+  if(mode==="join" && hostConnection && hostConnection.open){
+    btn.disabled=true;
+    btn.textContent="⏳ Reiniciando...";
+    hostConnection.send({type:"restartRequest",name:playerName});
+    setTimeout(()=>{
+      btn.disabled=false;
+      btn.textContent="🔄 Jogar novamente";
+    },2500);
+    return;
+  }
+
+  btn.textContent="Sem conexão com a sala";
+  setTimeout(()=>btn.textContent="🔄 Jogar novamente",1800);
+});
+
 $("winnerCloseBtn").addEventListener("click",()=>$("winnerOverlay").classList.add("hidden"));
 $("winnerHomeBtn").addEventListener("click",()=>{
   $("winnerOverlay").classList.add("hidden");
@@ -91,7 +120,7 @@ window.addEventListener("load",updateInstallUI);
 
 
 
-const CURRENT_VERSION = "1.10";
+const CURRENT_VERSION = "1.13";
 
 async function checkForNewVersion(){
   try{
@@ -592,7 +621,8 @@ if("serviceWorker" in navigator){
       <div id="winnerTitle" class="winner-name">BINGO!</div>
       <p id="winnerMessage" class="winner-message">Temos um vencedor!</p>
       <div class="winner-actions">
-        <button id="winnerHomeBtn" class="winner-btn primary" type="button">Voltar ao início</button>
+        <button id="winnerRestartBtn" class="winner-btn primary" type="button">🔄 Jogar novamente</button>
+        <button id="winnerHomeBtn" class="winner-btn secondary" type="button">Voltar ao início</button>
         <button id="winnerCloseBtn" class="winner-btn secondary" type="button">Ver cartela</button>
       </div>
     </div>
@@ -613,7 +643,7 @@ if("serviceWorker" in navigator){
     </div>
   </div>
 
-  <div class="footer">Bingo da Rua • V1.10 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
+  <div class="footer">Bingo da Rua • V1.13 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
 </main>
 
 <script>
@@ -705,6 +735,9 @@ function setupHostConnection(conn){
     }
     if(data.type==="bingo" && !gameOver){
       gameOver=true;broadcast({type:"winner",name:data.name});endGame(data.name);
+    }
+    if(data.type==="restartRequest" && gameOver){
+      startHostedGame();
     }
   });
   conn.on("close",()=>{
@@ -799,7 +832,11 @@ function startSoloGame(){
   cards=shuffle(sharedItems);selected=new Set();hasWon=false;gameOver=false;startGameScreen();
 }
 function startGameScreen(){
-  show("gameScreen");$("winnerOverlay").classList.add("hidden");$("currentCategory").textContent=category;
+  show("gameScreen");
+  $("winnerOverlay").classList.add("hidden");
+  $("winnerRestartBtn").disabled=false;
+  $("winnerRestartBtn").textContent="🔄 Jogar novamente";
+  $("currentCategory").textContent=category;
   $("goalBadge").textContent=goal==="full"?"🏁 Cartela inteira":"➖ Uma linha";
   $("winnerToast").classList.add("hidden");renderBoard();updateGame();broadcastProgress();
 }
