@@ -1,160 +1,480 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#2563eb" />
-  <title>Bingo da Rua Multiplayer</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2563eb">
+  <title>Bingo da Rua V1.8</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js">
+$("winnerCloseBtn").addEventListener("click",()=>$("winnerOverlay").classList.add("hidden"));
+$("winnerHomeBtn").addEventListener("click",()=>{
+  $("winnerOverlay").classList.add("hidden");
+  stopMusic();
+  gameOver=false;hasWon=false;selected=new Set();
+  if(peer){try{peer.destroy()}catch(e){}}
+  peer=null;hostConnection=null;clientConnections=[];progressMap={};
+  const u=new URL(location.href);u.search="";history.replaceState({}, "", u.pathname);
+  show("homeScreen");
+});
+
+
+let deferredInstallPrompt = null;
+
+function isStandalone(){
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function isIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function isSafariIOS(){
+  return isIOS() && /safari/i.test(navigator.userAgent) && !/crios|fxios|edgios/i.test(navigator.userAgent);
+}
+
+function updateInstallUI(){
+  const banner=$("installBanner");
+  if(isStandalone()){
+    banner.classList.add("hidden");
+    return;
+  }
+
+  if(deferredInstallPrompt){
+    $("installText").textContent="Instale para abrir direto pela tela inicial.";
+    $("installBtn").textContent="📲 Instalar";
+    banner.classList.remove("hidden");
+    return;
+  }
+
+  if(isSafariIOS()){
+    $("installText").textContent="No iPhone, adicione o jogo à Tela de Início.";
+    $("installBtn").textContent="Ver como instalar";
+    banner.classList.remove("hidden");
+    return;
+  }
+
+  banner.classList.add("hidden");
+}
+
+window.addEventListener("beforeinstallprompt", event=>{
+  event.preventDefault();
+  deferredInstallPrompt=event;
+  updateInstallUI();
+});
+
+window.addEventListener("appinstalled", ()=>{
+  deferredInstallPrompt=null;
+  $("installBanner").classList.add("hidden");
+});
+
+$("installBtn").addEventListener("click", async ()=>{
+  if(deferredInstallPrompt){
+    deferredInstallPrompt.prompt();
+    try{
+      await deferredInstallPrompt.userChoice;
+    }catch(e){}
+    deferredInstallPrompt=null;
+    updateInstallUI();
+    return;
+  }
+
+  if(isSafariIOS()){
+    $("iosHelp").classList.remove("hidden");
+  }
+});
+
+$("iosCloseBtn").addEventListener("click",()=>$("iosHelp").classList.add("hidden"));
+
+window.addEventListener("load",updateInstallUI);
+
+
+$("forceUpdateBtn").addEventListener("click", async ()=>{
+  const btn=$("forceUpdateBtn");
+  btn.disabled=true;
+  btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Limpando cache e atualizando...';
+
+  try{
+    if("serviceWorker" in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+
+    if("caches" in window){
+      const keys=await caches.keys();
+      await Promise.all(keys.map(k=>caches.delete(k)));
+    }
+
+    // Remove only app-local temporary state. Do not touch unrelated site data.
+    try{ sessionStorage.clear(); }catch(e){}
+
+    const u=new URL(location.href);
+    u.searchParams.set("_refresh",Date.now().toString());
+    location.replace(u.toString());
+  }catch(e){
+    btn.disabled=false;
+    btn.innerHTML='<i class="fa-solid fa-arrows-rotate"></i> Tentar atualizar novamente';
+    alert("Não foi possível limpar o cache automaticamente. Tente novamente.");
+  }
+});
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
+  });
+}
+
+</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">
+$("winnerCloseBtn").addEventListener("click",()=>$("winnerOverlay").classList.add("hidden"));
+$("winnerHomeBtn").addEventListener("click",()=>{
+  $("winnerOverlay").classList.add("hidden");
+  stopMusic();
+  gameOver=false;hasWon=false;selected=new Set();
+  if(peer){try{peer.destroy()}catch(e){}}
+  peer=null;hostConnection=null;clientConnections=[];progressMap={};
+  const u=new URL(location.href);u.search="";history.replaceState({}, "", u.pathname);
+  show("homeScreen");
+});
+
+
+let deferredInstallPrompt = null;
+
+function isStandalone(){
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function isIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function isSafariIOS(){
+  return isIOS() && /safari/i.test(navigator.userAgent) && !/crios|fxios|edgios/i.test(navigator.userAgent);
+}
+
+function updateInstallUI(){
+  const banner=$("installBanner");
+  if(isStandalone()){
+    banner.classList.add("hidden");
+    return;
+  }
+
+  if(deferredInstallPrompt){
+    $("installText").textContent="Instale para abrir direto pela tela inicial.";
+    $("installBtn").textContent="📲 Instalar";
+    banner.classList.remove("hidden");
+    return;
+  }
+
+  if(isSafariIOS()){
+    $("installText").textContent="No iPhone, adicione o jogo à Tela de Início.";
+    $("installBtn").textContent="Ver como instalar";
+    banner.classList.remove("hidden");
+    return;
+  }
+
+  banner.classList.add("hidden");
+}
+
+window.addEventListener("beforeinstallprompt", event=>{
+  event.preventDefault();
+  deferredInstallPrompt=event;
+  updateInstallUI();
+});
+
+window.addEventListener("appinstalled", ()=>{
+  deferredInstallPrompt=null;
+  $("installBanner").classList.add("hidden");
+});
+
+$("installBtn").addEventListener("click", async ()=>{
+  if(deferredInstallPrompt){
+    deferredInstallPrompt.prompt();
+    try{
+      await deferredInstallPrompt.userChoice;
+    }catch(e){}
+    deferredInstallPrompt=null;
+    updateInstallUI();
+    return;
+  }
+
+  if(isSafariIOS()){
+    $("iosHelp").classList.remove("hidden");
+  }
+});
+
+$("iosCloseBtn").addEventListener("click",()=>$("iosHelp").classList.add("hidden"));
+
+window.addEventListener("load",updateInstallUI);
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
+  });
+}
+
+</script>
 
   <style>
     :root{
-      --bg:#f5f7fb;
-      --card:#fff;
-      --text:#172033;
-      --muted:#64748b;
-      --border:#e2e8f0;
-      --primary:#2563eb;
-      --primary-soft:#dbeafe;
-      --success:#16a34a;
-      --success-soft:#dcfce7;
-      --danger:#dc2626;
+      --bg:#f4f7fb; --card:#fff; --text:#172033; --muted:#64748b;
+      --border:#e2e8f0; --primary:#2563eb; --primary-soft:#dbeafe;
+      --success:#16a34a; --success-soft:#dcfce7; --orange:#f59e0b;
       --shadow:0 12px 30px rgba(15,23,42,.08);
     }
     *{box-sizing:border-box}
     body{
-      margin:0;
+      margin:0; min-height:100vh; color:var(--text);
       font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
       background:
-        radial-gradient(circle at top left,#dbeafe 0,transparent 30%),
-        radial-gradient(circle at top right,#dcfce7 0,transparent 25%),
+        radial-gradient(circle at top left,#dbeafe 0,transparent 29%),
+        radial-gradient(circle at top right,#dcfce7 0,transparent 24%),
         linear-gradient(180deg,#fbfdff,var(--bg));
-      color:var(--text);
-      min-height:100vh;
     }
     button,input{font:inherit}
-    .app{width:min(980px,100%);margin:0 auto;padding:18px 14px 40px}
-    .hero{display:flex;gap:14px;align-items:center;margin-bottom:18px}
-    .logo{width:58px;height:58px;border-radius:19px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#60a5fa);color:white;font-size:27px;box-shadow:var(--shadow)}
-    h1{margin:0;font-size:clamp(1.6rem,5vw,2.2rem);line-height:1}
-    .subtitle{margin:6px 0 0;color:var(--muted);font-size:.93rem}
-    .panel{background:rgba(255,255,255,.95);border:1px solid var(--border);border-radius:24px;padding:16px;box-shadow:var(--shadow)}
+    button{touch-action:manipulation}
+    .app{width:min(1080px,100%);margin:auto;padding:18px 14px 40px}
+    .hero{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+    .logo{width:58px;height:58px;border-radius:19px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#60a5fa);color:#fff;font-size:27px;box-shadow:var(--shadow)}
+    h1{margin:0;font-size:clamp(1.6rem,5vw,2.25rem);line-height:1}
+    .subtitle{margin:6px 0 0;color:var(--muted);font-size:.92rem}
+    .panel{background:rgba(255,255,255,.96);border:1px solid var(--border);border-radius:24px;padding:16px;box-shadow:var(--shadow)}
     .hidden{display:none!important}
-    .screen-title{margin:0 0 4px;font-size:1.2rem}
-    .screen-sub{margin:0 0 16px;color:var(--muted);font-size:.9rem;line-height:1.4}
-
+    .screen-title{margin:0 0 4px;font-size:1.25rem}
+    .screen-sub{margin:0 0 15px;color:var(--muted);font-size:.9rem;line-height:1.4}
     .home-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-    .big-action{border:1px solid var(--border);background:white;border-radius:18px;min-height:110px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;font-weight:850;color:var(--text)}
+    .big-action{border:1px solid var(--border);background:#fff;border-radius:18px;min-height:110px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;font-weight:850;color:var(--text)}
     .big-action i{font-size:28px;color:var(--primary)}
     .big-action.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
     .big-action.primary i{color:#fff}
-
     .btn{border:0;border-radius:15px;min-height:48px;padding:0 16px;font-weight:850;cursor:pointer}
-    .btn-primary{background:var(--primary);color:white}
+    .btn-primary{background:var(--primary);color:#fff}
     .btn-secondary{background:#f1f5f9;color:var(--text);border:1px solid var(--border)}
-    .btn-success{background:var(--success);color:white}
-    .btn:disabled{opacity:.5;cursor:not-allowed}
-
+    .btn-success{background:var(--success);color:#fff}
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .field{width:100%;min-height:48px;border:1px solid var(--border);border-radius:14px;padding:0 13px;font-size:16px;background:white;color:var(--text)}
+    .field{width:100%;min-height:48px;border:1px solid var(--border);border-radius:14px;padding:0 13px;font-size:16px;background:#fff;color:var(--text)}
+
+    .options{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin:13px 0}
+    .option{border:1px solid var(--border);background:#fff;border-radius:16px;padding:12px;cursor:pointer;text-align:left}
+    .option strong{display:block;font-size:.96rem}
+    .option span{display:block;color:var(--muted);font-size:.78rem;margin-top:3px}
+    .option.active{background:var(--primary-soft);border-color:#93c5fd;color:#1d4ed8}
+
+    .categories{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:13px 0}
+    .category{border:1px solid var(--border);background:#fff;border-radius:14px;min-height:48px;cursor:pointer;font-weight:800}
+    .category.active{background:var(--primary-soft);border-color:#93c5fd;color:#1d4ed8}
+
     .lobby-grid{display:grid;grid-template-columns:280px 1fr;gap:16px}
     .qr-card{border:1px solid var(--border);border-radius:20px;padding:14px;text-align:center;background:#f8fafc}
     #qrcode{display:flex;justify-content:center;margin:12px auto}
     #qrcode canvas,#qrcode img{max-width:100%;height:auto}
-    .room-code{font-size:1.25rem;font-weight:900;letter-spacing:.08em;color:var(--primary);word-break:break-all}
-    .share-link{font-size:.77rem;color:var(--muted);word-break:break-all;line-height:1.3}
+    .room-code{font-size:1.1rem;font-weight:900;letter-spacing:.05em;color:var(--primary);word-break:break-all}
+    .share-link{font-size:.72rem;color:var(--muted);word-break:break-all;line-height:1.25;margin-top:6px}
+    .players{display:grid;gap:8px;margin-top:9px}
+    .player{border:1px solid var(--border);border-radius:14px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff}
+    .player .name{font-weight:800}.player small{color:var(--muted)}
+    .dot{width:10px;height:10px;border-radius:50%;background:var(--success)}
 
-    .players{display:grid;gap:8px}
-    .player{border:1px solid var(--border);border-radius:14px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:white}
-    .player .name{font-weight:800}
-    .player small{color:var(--muted)}
-    .dot{width:10px;height:10px;border-radius:50%;background:var(--success);flex:0 0 auto}
-
-    .categories{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
-    .category{border:1px solid var(--border);background:white;border-radius:14px;min-height:48px;cursor:pointer;font-weight:800}
-    .category.active{background:var(--primary-soft);border-color:#93c5fd;color:#1d4ed8}
-
+    .game-layout{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:14px}
     .game-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-    .mode{font-size:.78rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:var(--primary)}
+    .mode{font-size:.76rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:var(--primary)}
     .progress{font-size:1.05rem;font-weight:900;margin-top:3px}
-    .badge{border:1px solid var(--border);border-radius:999px;background:#f8fafc;padding:8px 12px;color:#475569;font-size:.82rem;font-weight:800}
+    .badges{display:flex;gap:7px;flex-wrap:wrap}
+    .badge{border:1px solid var(--border);border-radius:999px;background:#f8fafc;padding:7px 10px;color:#475569;font-size:.78rem;font-weight:800}
 
-    .board{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
-    .tile{min-width:0;aspect-ratio:1/1.04;position:relative;border:1px solid var(--border);border-radius:18px;background:linear-gradient(180deg,#fff,#f8fafc);padding:8px 5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;color:var(--text)}
-    .tile.selected{background:var(--success-soft);border-color:#86efac}
-    .bubble{width:52px;height:52px;border-radius:17px;display:grid;place-items:center;color:white;font-size:25px}
-    .c1{background:linear-gradient(135deg,#3b82f6,#60a5fa)}
-    .c2{background:linear-gradient(135deg,#22c55e,#4ade80)}
-    .c3{background:linear-gradient(135deg,#f59e0b,#fbbf24)}
-    .c4{background:linear-gradient(135deg,#8b5cf6,#a78bfa)}
-    .c5{background:linear-gradient(135deg,#ef4444,#fb7185)}
-    .c6{background:linear-gradient(135deg,#06b6d4,#22d3ee)}
-    .tile-name{font-size:.72rem;font-weight:850;line-height:1.15;text-align:center;overflow-wrap:anywhere}
-    .check{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--success);color:white;font-size:11px;opacity:0;transform:scale(.8)}
+    .board{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .tile{
+      min-width:0; position:relative; border:1px solid var(--border); border-radius:18px;
+      background:#fff; overflow:hidden; cursor:pointer; padding:0; aspect-ratio:1/1.14;
+      color:var(--text); transition:.14s ease;
+    }
+    .tile.selected{border-color:#4ade80;box-shadow:0 0 0 3px rgba(34,197,94,.12)}
+    .tile:disabled{cursor:not-allowed;opacity:.7}
+    .icon-wrap{height:68%;display:grid;place-items:center;position:relative;overflow:hidden}
+    .icon-wrap:before{content:"";position:absolute;width:78%;aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.52);box-shadow:inset 0 0 0 1px rgba(255,255,255,.65)}
+    .item-icon{position:relative;z-index:1;font-size:clamp(2rem,7vw,3.5rem);filter:drop-shadow(0 3px 4px rgba(15,23,42,.14))}
+    .emoji-fallback{position:relative;z-index:1;font-size:clamp(2rem,7vw,3.2rem);display:none}
+    .tile-name{height:32%;display:grid;place-items:center;padding:4px 5px;font-size:.7rem;font-weight:850;line-height:1.08;text-align:center;background:rgba(255,255,255,.88)}
+    .tone-0{background:linear-gradient(135deg,#fee2e2,#fecaca);color:#dc2626}
+    .tone-1{background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#2563eb}
+    .tone-2{background:linear-gradient(135deg,#dcfce7,#bbf7d0);color:#16a34a}
+    .tone-3{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#d97706}
+    .tone-4{background:linear-gradient(135deg,#ede9fe,#ddd6fe);color:#7c3aed}
+    .tone-5{background:linear-gradient(135deg,#cffafe,#a5f3fc);color:#0891b2}
+    .tone-6{background:linear-gradient(135deg,#fce7f3,#fbcfe8);color:#db2777}
+    .tone-7{background:linear-gradient(135deg,#ffedd5,#fed7aa);color:#ea580c}
+    .check{position:absolute;right:6px;top:6px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--success);color:#fff;font-size:11px;opacity:0;transform:scale(.8);z-index:2;box-shadow:0 3px 8px rgba(0,0,0,.18)}
     .tile.selected .check{opacity:1;transform:scale(1)}
+    .tile.selected:after{content:"";position:absolute;inset:0;background:rgba(22,163,74,.08);pointer-events:none}
+
     .status{margin-top:12px;border:1px solid var(--border);border-radius:15px;padding:12px 13px;background:#f8fafc;color:#475569;font-weight:700}
     .status.bingo{background:var(--success-soft);border-color:#86efac;color:#166534}
     .toast{margin-top:10px;border-radius:14px;padding:11px 12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-weight:750}
-    .footer{text-align:center;color:var(--muted);font-size:.76rem;margin-top:12px}
 
-    @media(max-width:720px){
+    .score-panel{border:1px solid var(--border);border-radius:18px;padding:12px;background:#f8fafc;align-self:start}
+    .score-title{font-weight:900;margin-bottom:9px}
+    .score-row{margin-bottom:11px}
+    .score-meta{display:flex;justify-content:space-between;gap:8px;font-size:.78rem;margin-bottom:5px}
+    .score-name{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .score-value{color:var(--muted)}
+    .track{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}
+    .fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#2563eb,#60a5fa);width:0;transition:width .2s ease}
+    .score-note{font-size:.72rem;color:var(--muted);line-height:1.3}
+
+    .music-btn{position:static;border:1px solid var(--border);background:#fff;color:var(--text);border-radius:999px;min-height:42px;padding:0 13px;font-weight:800;cursor:pointer}
+    .music-btn.on{background:#ede9fe;border-color:#c4b5fd;color:#6d28d9}
+    .footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:12px}
+
+
+
+
+    .update-box{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+    .update-btn{
+      width:100%;border:1px solid var(--border);border-radius:14px;min-height:46px;
+      padding:0 12px;background:#fff;color:#475569;font-weight:850;cursor:pointer
+    }
+    .update-btn:disabled{opacity:.65;cursor:wait}
+
+    .install-banner{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      margin:0 0 14px;padding:12px 14px;border-radius:18px;
+      background:linear-gradient(135deg,#eff6ff,#eef2ff);
+      border:1px solid #bfdbfe;box-shadow:var(--shadow)
+    }
+    .install-copy{display:flex;align-items:center;gap:10px;min-width:0}
+    .install-icon{
+      width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
+      background:#2563eb;color:#fff;font-size:18px;flex:0 0 auto
+    }
+    .install-text strong{display:block;font-size:.9rem}
+    .install-text span{display:block;color:#64748b;font-size:.76rem;margin-top:2px;line-height:1.25}
+    .install-action{
+      border:0;border-radius:13px;min-height:42px;padding:0 13px;
+      background:#2563eb;color:#fff;font-weight:900;cursor:pointer;white-space:nowrap
+    }
+    .ios-help{
+      position:fixed;inset:0;z-index:10000;display:grid;place-items:center;
+      padding:20px;background:rgba(15,23,42,.76);backdrop-filter:blur(5px)
+    }
+    .ios-card{
+      width:min(440px,100%);background:#fff;border-radius:24px;padding:20px;
+      box-shadow:0 22px 60px rgba(0,0,0,.3);text-align:center
+    }
+    .ios-card h3{margin:0 0 8px}
+    .ios-card p{margin:0 0 14px;color:#475569;line-height:1.45}
+    .ios-steps{display:grid;gap:8px;text-align:left;margin:14px 0}
+    .ios-step{background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:10px 12px;font-weight:800}
+    .ios-close{border:0;border-radius:14px;min-height:46px;padding:0 16px;background:#2563eb;color:#fff;font-weight:900;cursor:pointer}
+    @media(max-width:520px){
+  
+    .update-box{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+    .update-btn{
+      width:100%;border:1px solid var(--border);border-radius:14px;min-height:46px;
+      padding:0 12px;background:#fff;color:#475569;font-weight:850;cursor:pointer
+    }
+    .update-btn:disabled{opacity:.65;cursor:wait}
+
+    .install-banner{align-items:flex-start;flex-direction:column}
+      .install-action{width:100%}
+    }
+
+    .winner-overlay{
+      position:fixed; inset:0; z-index:9999; display:grid; place-items:center;
+      padding:20px; background:rgba(15,23,42,.82); backdrop-filter:blur(7px);
+      animation:fadeIn .2s ease;
+    }
+    .winner-card{
+      width:min(520px,100%); text-align:center; background:#fff; border-radius:30px;
+      padding:28px 20px 22px; box-shadow:0 25px 70px rgba(0,0,0,.34);
+      border:4px solid #fde68a; animation:popWin .35s cubic-bezier(.2,.8,.2,1.2);
+    }
+    .winner-trophy{
+      width:100px;height:100px;border-radius:50%;margin:0 auto 12px;
+      display:grid;place-items:center;font-size:52px;
+      background:linear-gradient(135deg,#fef3c7,#fde68a);
+      box-shadow:0 12px 30px rgba(245,158,11,.28);
+    }
+    .winner-kicker{font-size:.8rem;font-weight:950;letter-spacing:.14em;text-transform:uppercase;color:#b45309}
+    .winner-name{font-size:clamp(2rem,8vw,3.5rem);font-weight:1000;line-height:1;margin:8px 0;color:#166534}
+    .winner-message{margin:0 auto 18px;color:#475569;font-weight:750;line-height:1.35;max-width:360px}
+    .winner-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+    .winner-btn{
+      border:0;border-radius:16px;min-height:50px;padding:0 18px;font-weight:900;cursor:pointer
+    }
+    .winner-btn.primary{background:#16a34a;color:#fff}
+    .winner-btn.secondary{background:#f1f5f9;color:#172033;border:1px solid #e2e8f0}
+    .winner-confetti{font-size:1.35rem;letter-spacing:.18em;margin-bottom:8px}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes popWin{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
+
+    @media(max-width:760px){
       .home-actions{grid-template-columns:1fr}
-      .big-action{min-height:86px;flex-direction:row;justify-content:flex-start;padding-left:18px}
-      .lobby-grid{grid-template-columns:1fr}
-      .qr-card{max-width:360px;margin:0 auto;width:100%}
+      .big-action{min-height:84px;flex-direction:row;justify-content:flex-start;padding-left:18px}
+      .lobby-grid,.game-layout{grid-template-columns:1fr}
+      .qr-card{max-width:360px;margin:auto;width:100%}
+      .score-panel{order:-1}
+      .score-list{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+      .score-row{margin:0}
       .board{gap:6px}
-      .tile{border-radius:15px;padding:6px 3px}
-      .bubble{width:43px;height:43px;border-radius:14px;font-size:21px}
-      .tile-name{font-size:.63rem}
+      .tile{border-radius:14px}
+      .tile-name{font-size:.64rem}
     }
     @media(max-width:390px){
-      .app{padding-left:9px;padding-right:9px}
-      .panel{padding:11px;border-radius:20px}
-      .bubble{width:38px;height:38px;border-radius:12px;font-size:18px}
-      .tile-name{font-size:.56rem}
+      .app{padding-left:8px;padding-right:8px}.panel{padding:10px;border-radius:19px}
+      .tile-name{font-size:.58rem}.board{gap:5px}
+      .categories,.options{gap:6px}
+      .category{font-size:.74rem}.option{padding:9px}
     }
   </style>
-</head>
 
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Bingo da Rua">
+
+</head>
 <body>
 <main class="app">
   <header class="hero">
     <div class="logo"><i class="fa-solid fa-car-side"></i></div>
     <div>
       <h1>Bingo da Rua</h1>
-      <p class="subtitle">Agora com partida multiplayer por link e QR Code.</p>
+      <p class="subtitle">Ícones coloridos, dois tipos de vitória e multiplayer com progresso ao vivo.</p>
     </div>
   </header>
 
+
+  <div id="installBanner" class="install-banner hidden">
+    <div class="install-copy">
+      <div class="install-icon"><i class="fa-solid fa-mobile-screen-button"></i></div>
+      <div class="install-text">
+        <strong>Instalar Bingo da Rua</strong>
+        <span id="installText">Jogue como aplicativo na tela inicial.</span>
+      </div>
+    </div>
+    <button id="installBtn" class="install-action" type="button">📲 Instalar</button>
+  </div>
+
   <section id="homeScreen" class="panel">
     <h2 class="screen-title">Como você quer jogar?</h2>
-    <p class="screen-sub">Para jogar com outras pessoas, todos precisam estar conectados à internet.</p>
-
+    <p class="screen-sub">No multiplayer, todos precisam estar conectados à internet.</p>
     <div class="home-actions">
-      <button id="soloBtn" class="big-action" type="button">
-        <i class="fa-solid fa-user"></i>
-        <span>Jogar sozinho</span>
-      </button>
-
-      <button id="hostBtn" class="big-action primary" type="button">
-        <i class="fa-solid fa-users"></i>
-        <span>Criar partida</span>
-      </button>
-
-      <button id="joinBtn" class="big-action" type="button">
-        <i class="fa-solid fa-qrcode"></i>
-        <span>Entrar na partida</span>
+      <button id="soloBtn" class="big-action" type="button"><i class="fa-solid fa-user"></i><span>Jogar sozinho</span></button>
+      <button id="hostBtn" class="big-action primary" type="button"><i class="fa-solid fa-users"></i><span>Criar partida</span></button>
+      <button id="joinBtn" class="big-action" type="button"><i class="fa-solid fa-qrcode"></i><span>Entrar na partida</span></button>
+    </div>
+    <div class="update-box">
+      <button id="forceUpdateBtn" class="update-btn" type="button">
+        <i class="fa-solid fa-arrows-rotate"></i> Atualizar para a versão mais recente
       </button>
     </div>
   </section>
 
   <section id="nameScreen" class="panel hidden">
     <h2 id="nameTitle" class="screen-title">Seu nome</h2>
-    <p id="nameSub" class="screen-sub">Escolha um nome ou apelido para aparecer na sala.</p>
-
+    <p id="nameSub" class="screen-sub">Escolha um nome ou apelido.</p>
     <input id="playerName" class="field" maxlength="18" placeholder="Ex.: Olivia" autocomplete="off">
     <div class="row" style="margin-top:12px">
       <button id="continueName" class="btn btn-primary" type="button">Continuar</button>
@@ -162,11 +482,34 @@
     </div>
   </section>
 
+  <section id="setupScreen" class="panel hidden">
+    <h2 class="screen-title">Configure a partida</h2>
+    <p class="screen-sub">Escolha o cenário e como alguém vence.</p>
+
+    <strong>Cenário</strong>
+    <div class="categories">
+      <button class="category active" data-category="Rua" type="button"><i class="fa-solid fa-city"></i> Rua</button>
+      <button class="category" data-category="Estrada" type="button"><i class="fa-solid fa-road"></i> Estrada</button>
+      <button class="category" data-category="Parque" type="button"><i class="fa-solid fa-tree"></i> Parque</button>
+    </div>
+
+    <strong>Tipo de partida</strong>
+    <div class="options">
+      <button class="option active" data-goal="line" type="button">
+        <strong>➖ Uma linha</strong><span>Vence ao completar linha, coluna ou diagonal.</span>
+      </button>
+      <button class="option" data-goal="full" type="button">
+        <strong>🏁 Cartela inteira</strong><span>Vence somente depois de encontrar os 16 itens.</span>
+      </button>
+    </div>
+
+    <button id="confirmSetup" class="btn btn-primary" type="button">Continuar</button>
+  </section>
+
   <section id="joinScreen" class="panel hidden">
     <h2 class="screen-title">Entrar na partida</h2>
-    <p class="screen-sub">Se você abriu o link pelo QR Code, a sala será preenchida automaticamente.</p>
-
-    <input id="roomInput" class="field" placeholder="Cole o código da sala">
+    <p class="screen-sub">Se você abriu pelo QR Code, a sala já estará preenchida.</p>
+    <input id="roomInput" class="field" placeholder="Código da sala">
     <div class="row" style="margin-top:12px">
       <button id="connectBtn" class="btn btn-primary" type="button">Entrar</button>
       <button id="backJoin" class="btn btn-secondary" type="button">Voltar</button>
@@ -177,7 +520,6 @@
   <section id="lobbyScreen" class="panel hidden">
     <h2 class="screen-title">Sala da partida</h2>
     <p id="lobbyHint" class="screen-sub"></p>
-
     <div class="lobby-grid">
       <div id="hostShareBox" class="qr-card hidden">
         <strong>Escaneie para entrar</strong>
@@ -185,17 +527,11 @@
         <div id="roomCode" class="room-code"></div>
         <div id="shareLink" class="share-link"></div>
       </div>
-
       <div>
+        <div id="lobbyRules" class="status"></div>
         <strong>Jogadores</strong>
-        <div id="players" class="players" style="margin-top:9px"></div>
-
-        <div id="hostControls" class="hidden">
-          <div class="categories">
-            <button class="category active" data-category="Rua" type="button"><i class="fa-solid fa-city"></i> Rua</button>
-            <button class="category" data-category="Estrada" type="button"><i class="fa-solid fa-road"></i> Estrada</button>
-            <button class="category" data-category="Parque" type="button"><i class="fa-solid fa-tree"></i> Parque</button>
-          </div>
+        <div id="players" class="players"></div>
+        <div id="hostControls" class="hidden" style="margin-top:12px">
           <button id="startGameBtn" class="btn btn-success" type="button">Começar partida</button>
         </div>
       </div>
@@ -208,74 +544,107 @@
         <div id="currentCategory" class="mode">Rua</div>
         <div id="progress" class="progress">0 de 16 encontrados</div>
       </div>
-      <div id="lines" class="badge">0 linhas completas</div>
+      <div class="badges">
+        <span id="goalBadge" class="badge">Uma linha</span>
+        <span id="lines" class="badge">0 linhas</span>
+        <button id="musicBtn" class="music-btn" type="button"><i class="fa-solid fa-music"></i> Música</button>
+      </div>
     </div>
 
-    <div id="board" class="board"></div>
-    <div id="status" class="status">Toque em um item quando você encontrá-lo.</div>
-    <div id="winnerToast" class="toast hidden"></div>
+    <div class="game-layout">
+      <div>
+        <div id="board" class="board"></div>
+        <div id="status" class="status">Toque em um item quando você encontrá-lo.</div>
+        <div id="winnerToast" class="toast hidden"></div>
+      </div>
+
+      <aside id="scorePanel" class="score-panel">
+        <div class="score-title">🏎️ Corrida</div>
+        <div id="scoreList" class="score-list"></div>
+        <div class="score-note">O progresso mostra quantos itens cada jogador encontrou, sem revelar quais itens foram marcados.</div>
+      </aside>
+    </div>
   </section>
 
-  <div class="footer">Bingo da Rua • Multiplayer experimental V1.3</div>
+
+  <div id="winnerOverlay" class="winner-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="winnerTitle">
+    <div class="winner-card">
+      <div class="winner-confetti">🎉 ⭐ 🎉 ⭐ 🎉</div>
+      <div class="winner-trophy">🏆</div>
+      <div class="winner-kicker">Partida encerrada</div>
+      <div id="winnerTitle" class="winner-name">BINGO!</div>
+      <p id="winnerMessage" class="winner-message">Temos um vencedor!</p>
+      <div class="winner-actions">
+        <button id="winnerHomeBtn" class="winner-btn primary" type="button">Voltar ao início</button>
+        <button id="winnerCloseBtn" class="winner-btn secondary" type="button">Ver cartela</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="iosHelp" class="ios-help hidden">
+    <div class="ios-card">
+      <div style="font-size:42px">📲</div>
+      <h3>Instalar no iPhone/iPad</h3>
+      <p>No Safari, a instalação é feita pelo menu de compartilhamento.</p>
+      <div class="ios-steps">
+        <div class="ios-step">1. Toque em Compartilhar <strong>⤴️</strong></div>
+        <div class="ios-step">2. Escolha <strong>Adicionar à Tela de Início</strong></div>
+        <div class="ios-step">3. Toque em <strong>Adicionar</strong></div>
+      </div>
+      <button id="iosCloseBtn" class="ios-close" type="button">Entendi</button>
+    </div>
+  </div>
+
+  <div class="footer">Bingo da Rua • V1.8 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
 </main>
 
 <script>
+
 const banks = {
   Rua: [
-    ["fa-traffic-light","Semáforo"],["fa-bus-simple","Ônibus"],["fa-dog","Cachorro"],["fa-bicycle","Bicicleta"],
-    ["fa-tree","Árvore"],["fa-truck","Caminhão"],["fa-motorcycle","Moto"],["fa-gas-pump","Posto"],
-    ["fa-taxi","Táxi"],["fa-school","Escola"],["fa-truck-medical","Ambulância"],["fa-bridge","Ponte"],
-    ["fa-person-digging","Obra"],["fa-shield-halved","Polícia"],["fa-dove","Pássaro"],["fa-cart-shopping","Mercado"],
-    ["fa-door-open","Portão"],["fa-building","Prédio"],["fa-box","Motoboy"],["fa-square-parking","Estacionamento"],
-    ["fa-person-walking","Pedestre"],["fa-hospital","Hospital"],["fa-seedling","Flor"],["fa-truck-moving","Carreta"]
+    ["fa-traffic-light","Semáforo","🚦",0],["fa-bus-simple","Ônibus","🚌",1],["fa-dog","Cachorro","🐶",2],["fa-bicycle","Bicicleta","🚲",3],
+    ["fa-tree","Árvore","🌳",4],["fa-truck","Caminhão","🚚",5],["fa-motorcycle","Moto","🏍️",6],["fa-gas-pump","Posto","⛽",7],
+    ["fa-taxi","Táxi","🚕",8],["fa-school","Escola","🏫",9],["fa-truck-medical","Ambulância","🚑",10],["fa-bridge","Ponte","🌉",11],
+    ["fa-person-digging","Obra","🚧",12],["fa-car-side","Carro de polícia","🚓",13],["fa-dove","Pássaro","🐦",14],["fa-cart-shopping","Mercado","🛒",15],
+    ["fa-door-open","Portão","🚪",16],["fa-building","Prédio","🏢",17],["fa-box","Entrega","📦",18],["fa-square-parking","Estacionamento","🅿️",19],
+    ["fa-person-walking","Pedestre","🚶",20],["fa-hospital","Hospital","🏥",21],["fa-seedling","Flor","🌺",22],["fa-truck-moving","Carreta","🚛",23]
   ],
   Estrada: [
-    ["fa-truck-moving","Carreta"],["fa-gas-pump","Posto"],["fa-bridge","Ponte"],["fa-person-digging","Obra"],
-    ["fa-bus-simple","Ônibus"],["fa-shield-halved","Polícia"],["fa-cow","Vaca"],["fa-wheat-awn","Plantação"],
-    ["fa-mountain","Morro"],["fa-car-side","SUV"],["fa-money-bill","Pedágio"],["fa-industry","Fábrica"],
-    ["fa-tractor","Trator"],["fa-horse","Cavalo"],["fa-cloud","Nuvem"],["fa-sign-hanging","Placa"],
-    ["fa-tree","Árvore grande"],["fa-van-shuttle","Van"],["fa-house","Cidade pequena"],["fa-road-bridge","Viaduto"],
-    ["fa-dove","Pássaro"],["fa-car","Carro vermelho"],["fa-truck","Caminhão"],["fa-store","Loja de estrada"]
+    ["fa-truck-moving","Carreta","🚛",0],["fa-gas-pump","Posto","⛽",1],["fa-bridge","Ponte","🌉",2],["fa-person-digging","Obra","🚧",3],
+    ["fa-bus-simple","Ônibus","🚌",4],["fa-car-side","Polícia","🚓",5],["fa-cow","Vaca","🐄",6],["fa-wheat-awn","Plantação","🌾",7],
+    ["fa-mountain","Morro","⛰️",8],["fa-car-rear","SUV","🚙",9],["fa-road","Pedágio","🛣️",10],["fa-industry","Fábrica","🏭",11],
+    ["fa-tractor","Trator","🚜",12],["fa-horse","Cavalo","🐎",13],["fa-cloud","Nuvem","☁️",14],["fa-sign-hanging","Placa","🪧",15],
+    ["fa-tree","Árvore grande","🌳",16],["fa-van-shuttle","Van","🚐",17],["fa-house-chimney","Cidade pequena","🏘️",18],["fa-road-bridge","Viaduto","🛣️",19],
+    ["fa-dove","Pássaro","🐦",20],["fa-car-side","Carro vermelho","🚗",21],["fa-truck","Caminhão","🚚",22],["fa-store","Loja de estrada","🏪",23]
   ],
   Parque: [
-    ["fa-tree","Árvore"],["fa-dove","Pássaro"],["fa-dog","Cachorro"],["fa-bicycle","Bicicleta"],
-    ["fa-futbol","Bola"],["fa-child-reaching","Brinquedo"],["fa-seedling","Flor"],["fa-bug","Borboleta"],
-    ["fa-bug","Formiga"],["fa-chair","Banco"],["fa-person-running","Pessoa correndo"],["fa-person-biking","Patinete"],
-    ["fa-basket-shopping","Piquenique"],["fa-leaf","Grama"],["fa-water","Fonte"],["fa-hat-cowboy","Boné"],
-    ["fa-wind","Pipa"],["fa-paw","Animal pequeno"],["fa-bottle-water","Garrafa"],["fa-shoe-prints","Tênis colorido"],
-    ["fa-cloud-sun","Sol entre nuvens"],["fa-balloon","Balão"],["fa-person-skating","Skate"],["fa-people-roof","Família"]
+    ["fa-tree","Árvore","🌳",0],["fa-dove","Pássaro","🐦",1],["fa-dog","Cachorro","🐶",2],["fa-bicycle","Bicicleta","🚲",3],
+    ["fa-futbol","Bola","⚽",4],["fa-child-reaching","Brinquedo","🛝",5],["fa-seedling","Flor","🌺",6],["fa-bug","Borboleta","🦋",7],
+    ["fa-bug","Formiga","🐜",8],["fa-chair","Banco","🪑",9],["fa-person-running","Pessoa correndo","🏃",10],["fa-person-skating","Patinete","🛴",11],
+    ["fa-basket-shopping","Piquenique","🧺",12],["fa-leaf","Grama","🌿",13],["fa-faucet-drip","Fonte","⛲",14],["fa-hat-cowboy","Boné","🧢",15],
+    ["fa-wind","Pipa","🪁",16],["fa-paw","Animal pequeno","🐿️",17],["fa-bottle-water","Garrafa","🥤",18],["fa-shoe-prints","Tênis colorido","👟",19],
+    ["fa-sun","Sol entre nuvens","🌤️",20],["fa-circle","Balão","🎈",21],["fa-person-skating","Skate","🛹",22],["fa-people-group","Família","👨‍👩‍👧",23]
   ]
 };
 
-const screens=["homeScreen","nameScreen","joinScreen","lobbyScreen","gameScreen"];
+const screens=["homeScreen","nameScreen","setupScreen","joinScreen","lobbyScreen","gameScreen"];
 const $=id=>document.getElementById(id);
-function show(id){ screens.forEach(s=>$(s).classList.toggle("hidden",s!==id)); }
+function show(id){screens.forEach(s=>$(s).classList.toggle("hidden",s!==id))}
 
-let mode="solo";
-let playerName="";
-let peer=null;
-let hostConnection=null;
-let clientConnections=[];
-let hostPeerId="";
-let category="Rua";
-let sharedItems=[];
-let cards=[];
-let selected=new Set();
-let hasWon=false;
-let gameOver=false;
-let playerSeed="";
+let mode="solo", playerName="", category="Rua", goal="line";
+let peer=null, hostConnection=null, clientConnections=[], hostPeerId="";
+let sharedItems=[], cards=[], selected=new Set(), hasWon=false, gameOver=false, playerSeed="";
+let progressMap={};
+let musicOn=false, audioCtx=null, musicTimer=null, musicStep=0;
 
-function randomId(){
-  return "bdr-" + Math.random().toString(36).slice(2,7) + "-" + Date.now().toString(36).slice(-4);
-}
-function shuffle(list, seedText=""){
-  const a=[...list];
-  let seed=0;
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
+function randomId(){return "bdr-"+Math.random().toString(36).slice(2,7)+"-"+Date.now().toString(36).slice(-4)}
+
+function shuffle(list,seedText=""){
+  const a=[...list]; let seed=0;
   for(let i=0;i<seedText.length;i++) seed=(seed*31+seedText.charCodeAt(i))>>>0;
-  function rnd(){
-    seed=(1664525*seed+1013904223)>>>0;
-    return seed/4294967296;
-  }
+  function rnd(){seed=(1664525*seed+1013904223)>>>0;return seed/4294967296}
   for(let i=a.length-1;i>0;i--){
     const j=Math.floor((seedText?rnd():Math.random())*(i+1));
     [a[i],a[j]]=[a[j],a[i]];
@@ -284,322 +653,359 @@ function shuffle(list, seedText=""){
 }
 function winningLines(){
   const x=[];
-  for(let r=0;r<4;r++) x.push([r*4,r*4+1,r*4+2,r*4+3]);
-  for(let c=0;c<4;c++) x.push([c,c+4,c+8,c+12]);
+  for(let r=0;r<4;r++)x.push([r*4,r*4+1,r*4+2,r*4+3]);
+  for(let c=0;c<4;c++)x.push([c,c+4,c+8,c+12]);
   x.push([0,5,10,15],[3,6,9,12]);
   return x;
 }
-function completeLines(){
-  return winningLines().filter(line=>line.every(i=>selected.has(i)));
+function completedLines(){return winningLines().filter(line=>line.every(i=>selected.has(i)))}
+function hasVictory(){
+  return goal==="full" ? selected.size===16 : completedLines().length>0;
 }
-
+function ruleText(){
+  return `${category} • ${goal==="full"?"Cartela inteira":"Uma linha, coluna ou diagonal"}`;
+}
 function getJoinUrl(id){
-  const url=new URL(location.href);
-  url.search="";
-  url.hash="";
-  url.searchParams.set("room",id);
-  return url.toString();
+  const u=new URL(location.href);u.search="";u.hash="";u.searchParams.set("room",id);return u.toString();
 }
 
 function startPeerAsHost(){
   hostPeerId=randomId();
   peer=new Peer(hostPeerId);
-  peer.on("open",id=>{
-    hostPeerId=id;
-    renderHostLobby();
-  });
-  peer.on("connection",conn=>{
-    clientConnections.push(conn);
-    setupHostConnection(conn);
-  });
-  peer.on("error",err=>{
-    $("lobbyHint").textContent="Não foi possível criar a sala. Verifique a internet e tente novamente.";
-    console.error(err);
-  });
+  peer.on("open",id=>{hostPeerId=id;renderHostLobby()});
+  peer.on("connection",conn=>{clientConnections.push(conn);setupHostConnection(conn)});
+  peer.on("error",()=>{$("lobbyHint").textContent="Não foi possível criar a sala. Verifique a internet e tente novamente."});
 }
-
 function setupHostConnection(conn){
   conn.on("data",data=>{
     if(data.type==="hello"){
-      conn.playerName=data.name || "Jogador";
-      conn.playerSeed=data.seed || conn.peer;
-      broadcastPlayers();
+      conn.playerName=data.name||"Jogador";conn.playerSeed=data.seed||conn.peer;
+      progressMap[conn.peer]={name:conn.playerName,count:0};broadcastPlayers();broadcastProgress();
     }
-    if(data.type==="bingo"){
-      if(!gameOver){
-        gameOver=true;
-        broadcast({type:"winner",name:data.name});
-        endGame(data.name);
-      }
+    if(data.type==="progress"){
+      progressMap[conn.peer]={name:conn.playerName||data.name||"Jogador",count:Number(data.count)||0};
+      broadcastProgress();
+    }
+    if(data.type==="bingo" && !gameOver){
+      gameOver=true;broadcast({type:"winner",name:data.name});endGame(data.name);
     }
   });
   conn.on("close",()=>{
+    delete progressMap[conn.peer];
     clientConnections=clientConnections.filter(c=>c!==conn);
-    broadcastPlayers();
+    broadcastPlayers();broadcastProgress();
   });
 }
-
 function renderHostLobby(){
   show("lobbyScreen");
-  $("hostShareBox").classList.remove("hidden");
-  $("hostControls").classList.remove("hidden");
+  $("hostShareBox").classList.remove("hidden");$("hostControls").classList.remove("hidden");
   $("lobbyHint").textContent="Mostre este QR Code aos outros jogadores.";
+  $("lobbyRules").textContent="🎯 "+ruleText();
   $("roomCode").textContent=hostPeerId;
-  const link=getJoinUrl(hostPeerId);
-  $("shareLink").textContent=link;
-  $("qrcode").innerHTML="";
+  const link=getJoinUrl(hostPeerId);$("shareLink").textContent=link;$("qrcode").innerHTML="";
   new QRCode($("qrcode"),{text:link,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});
-  broadcastPlayers();
+  progressMap[hostPeerId]={name:playerName,count:0};broadcastPlayers();
 }
-
-function broadcast(data){
-  clientConnections.forEach(c=>{
-    if(c.open) c.send(data);
-  });
-}
-
+function broadcast(data){clientConnections.forEach(c=>{if(c.open)c.send(data)})}
 function currentPlayers(){
-  return [{name:playerName,host:true}].concat(
-    clientConnections.filter(c=>c.open && c.playerName).map(c=>({name:c.playerName,host:false}))
-  );
+  return [{name:playerName,host:true}].concat(clientConnections.filter(c=>c.open&&c.playerName).map(c=>({name:c.playerName,host:false})));
 }
-
 function broadcastPlayers(){
-  const list=currentPlayers();
-  renderPlayers(list);
-  broadcast({type:"players",players:list});
+  const list=currentPlayers();renderPlayers(list);
+  broadcast({type:"players",players:list,category,goal});
 }
-
 function renderPlayers(list){
-  $("players").innerHTML=list.map(p=>`
-    <div class="player">
-      <div>
-        <div class="name">${escapeHtml(p.name)}</div>
-        <small>${p.host?"Anfitrião":"Jogador"}</small>
-      </div>
-      <span class="dot"></span>
-    </div>`).join("");
+  $("players").innerHTML=list.map(p=>`<div class="player"><div><div class="name">${escapeHtml(p.name)}</div><small>${p.host?"Anfitrião":"Jogador"}</small></div><span class="dot"></span></div>`).join("");
 }
-
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+function broadcastProgress(){
+  const hostKey=hostPeerId||"host";
+  if(mode==="host") progressMap[hostKey]={name:playerName,count:selected.size||0};
+  const rows=Object.values(progressMap);
+  renderScores(rows);
+  broadcast({type:"progressAll",rows});
+}
+function renderScores(rows){
+  if(mode==="solo") rows=[{name:playerName||"Você",count:selected.size}];
+  $("scoreList").innerHTML=rows.map(r=>{
+    const count=Math.max(0,Math.min(16,Number(r.count)||0));
+    const pct=(count/16)*100;
+    return `<div class="score-row">
+      <div class="score-meta"><span class="score-name">${escapeHtml(r.name)}</span><span class="score-value">${count}/16</span></div>
+      <div class="track"><div class="fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join("");
 }
 
 function joinRoom(roomId){
-  $("joinError").classList.add("hidden");
-  peer=new Peer();
+  $("joinError").classList.add("hidden"); peer=new Peer();
   peer.on("open",()=>{
     hostConnection=peer.connect(roomId,{reliable:true});
     hostConnection.on("open",()=>{
       playerSeed=peer.id;
       hostConnection.send({type:"hello",name:playerName,seed:playerSeed});
-      show("lobbyScreen");
-      $("hostShareBox").classList.add("hidden");
-      $("hostControls").classList.add("hidden");
+      show("lobbyScreen");$("hostShareBox").classList.add("hidden");$("hostControls").classList.add("hidden");
       $("lobbyHint").textContent="Você entrou na sala. Aguarde o anfitrião começar.";
     });
     hostConnection.on("data",handleClientData);
-    hostConnection.on("close",()=>{
-      $("lobbyHint").textContent="A conexão com o anfitrião foi encerrada.";
-    });
-    hostConnection.on("error",showJoinError);
+    hostConnection.on("close",()=>{$("lobbyHint").textContent="A conexão com o anfitrião foi encerrada."});
   });
-  peer.on("error",showJoinError);
+  peer.on("error",()=>{
+    show("joinScreen");$("joinError").classList.remove("hidden");
+    $("joinError").textContent="Não foi possível entrar nessa sala. Confirme o código e tente novamente.";
+  });
 }
-
-function showJoinError(err){
-  show("joinScreen");
-  $("joinError").classList.remove("hidden");
-  $("joinError").textContent="Não foi possível entrar nessa sala. Confirme o link/código e tente novamente.";
-  console.error(err);
-}
-
 function handleClientData(data){
-  if(data.type==="players") renderPlayers(data.players||[]);
+  if(data.type==="players"){
+    renderPlayers(data.players||[]);category=data.category||category;goal=data.goal||goal;
+    $("lobbyRules").textContent="🎯 "+ruleText();
+  }
+  if(data.type==="progressAll") renderScores(data.rows||[]);
   if(data.type==="start"){
-    category=data.category;
-    sharedItems=data.items;
-    cards=shuffle(sharedItems,playerSeed || playerName);
-    selected=new Set();
-    hasWon=false;
+    category=data.category;goal=data.goal;sharedItems=data.items;
+    cards=shuffle(sharedItems,playerSeed||playerName);selected=new Set();hasWon=false;gameOver=false;
     startGameScreen();
   }
-  if(data.type==="winner"){
-    endGame(data.name);
-  }
+  if(data.type==="winner") endGame(data.name);
 }
 
 function startHostedGame(){
   sharedItems=shuffle(banks[category]).slice(0,16);
   cards=shuffle(sharedItems,"host-"+hostPeerId);
-  selected=new Set();
-  hasWon=false;
-  gameOver=false;
-  broadcast({type:"start",category,items:sharedItems});
-  startGameScreen();
+  selected=new Set();hasWon=false;gameOver=false;
+  progressMap={};progressMap[hostPeerId]={name:playerName,count:0};
+  clientConnections.filter(c=>c.open&&c.playerName).forEach(c=>progressMap[c.peer]={name:c.playerName,count:0});
+  broadcast({type:"start",category,goal,items:sharedItems});
+  startGameScreen();broadcastProgress();
 }
-
 function startSoloGame(){
   sharedItems=shuffle(banks[category]).slice(0,16);
-  cards=shuffle(sharedItems);
-  selected=new Set();
-  hasWon=false;
-  gameOver=false;
-  startGameScreen();
+  cards=shuffle(sharedItems);selected=new Set();hasWon=false;gameOver=false;startGameScreen();
 }
-
 function startGameScreen(){
-  show("gameScreen");
-  $("currentCategory").textContent=category;
-  $("winnerToast").classList.add("hidden");
-  renderBoard();
-  updateGame();
+  show("gameScreen");$("winnerOverlay").classList.add("hidden");$("currentCategory").textContent=category;
+  $("goalBadge").textContent=goal==="full"?"🏁 Cartela inteira":"➖ Uma linha";
+  $("winnerToast").classList.add("hidden");renderBoard();updateGame();broadcastProgress();
 }
-
 function renderBoard(){
   $("board").innerHTML="";
   cards.forEach((item,index)=>{
-    const [icon,name]=item;
-    const btn=document.createElement("button");
-    btn.type="button";
+    const [icon,name,fallback,tone]=item;
+    const btn=document.createElement("button");btn.type="button";
     btn.className="tile"+(selected.has(index)?" selected":"");
-    btn.setAttribute("aria-pressed",selected.has(index)?"true":"false");
+    btn.disabled=gameOver;
     btn.innerHTML=`
       <span class="check"><i class="fa-solid fa-check"></i></span>
-      <span class="bubble c${(index%6)+1}"><i class="fa-solid ${icon}"></i></span>
-      <span class="tile-name">${escapeHtml(name)}</span>
-    `;
-    if(gameOver){
-      btn.disabled=true;
-      btn.style.cursor="not-allowed";
-      btn.style.opacity=".72";
-    }
-
+      <div class="icon-wrap tone-${tone%8}">
+        <i class="fa-solid ${icon} item-icon" aria-hidden="true"></i>
+        <span class="emoji-fallback" aria-hidden="true">${fallback}</span>
+      </div>
+      <div class="tile-name">${escapeHtml(name)}</div>`;
+    const ico=btn.querySelector(".item-icon"),fb=btn.querySelector(".emoji-fallback");
+    setTimeout(()=>{
+      const style=getComputedStyle(ico);
+      const hidden = !ico.getBoundingClientRect().width || style.display==="none";
+      if(hidden){ico.style.display="none";fb.style.display="inline";}
+    },1200);
     btn.addEventListener("click",()=>{
-      if(gameOver) return;
-      if(selected.has(index)) selected.delete(index);
-      else selected.add(index);
-      renderBoard();
-      updateGame();
+      if(gameOver)return;
+      selected.has(index)?selected.delete(index):selected.add(index);
+      renderBoard();updateGame();sendProgress();
     });
     $("board").appendChild(btn);
   });
 }
-
+function sendProgress(){
+  if(mode==="host") broadcastProgress();
+  else if(mode==="join"&&hostConnection&&hostConnection.open) hostConnection.send({type:"progress",name:playerName,count:selected.size});
+  else renderScores([{name:playerName||"Você",count:selected.size}]);
+}
 function updateGame(){
-  const complete=completeLines();
+  const complete=completedLines();
   $("progress").textContent=`${selected.size} de 16 encontrados`;
-  $("lines").textContent=`${complete.length} ${complete.length===1?"linha completa":"linhas completas"}`;
-  $("status").classList.toggle("bingo",complete.length>0);
+  $("lines").textContent=goal==="full"?`${selected.size}/16`:`${complete.length} ${complete.length===1?"linha":"linhas"}`;
+  $("status").classList.toggle("bingo",hasVictory());
 
-  if(complete.length>0){
-    $("status").textContent="🎉 BINGO! Você completou uma linha, coluna ou diagonal!";
-    if(!hasWon && !gameOver){
-      hasWon=true;
-
-      if(mode==="host"){
-        gameOver=true;
-        broadcast({type:"winner",name:playerName});
-        endGame(playerName);
-      }else if(mode==="join" && hostConnection && hostConnection.open){
-        gameOver=true;
-        hostConnection.send({type:"bingo",name:playerName});
-        endGame(playerName);
-      }else{
-        gameOver=true;
-        endGame(playerName || "Você");
-      }
+  if(hasVictory()){
+    $("status").textContent=goal==="full"?"🎉 CARTELA CHEIA! Você encontrou todos os itens!":"🎉 BINGO! Você completou uma linha, coluna ou diagonal!";
+    if(!hasWon&&!gameOver){
+      hasWon=true;gameOver=true;
+      if(mode==="host"){broadcast({type:"winner",name:playerName});endGame(playerName)}
+      else if(mode==="join"&&hostConnection&&hostConnection.open){hostConnection.send({type:"bingo",name:playerName});endGame(playerName)}
+      else endGame(playerName||"Você");
     }
   }else if(selected.size===0){
-    $("status").textContent="Toque em um item quando você encontrá-lo.";
+    $("status").textContent=goal==="full"?"Encontre e marque todos os 16 itens.":"Complete uma linha, coluna ou diagonal.";
   }else{
     $("status").textContent=`Boa! Você já encontrou ${selected.size} ${selected.size===1?"item":"itens"}.`;
   }
 }
-
-function announceWinner(name){
-  $("winnerToast").textContent=`🏆 ${name} fez BINGO! Partida encerrada.`;
-  $("winnerToast").classList.remove("hidden");
-}
-
 function endGame(name){
   gameOver=true;
-  announceWinner(name);
-
+  const safeName=name||"Jogador";
+  $("winnerToast").textContent=`🏆 ${safeName} venceu! A partida foi encerrada para todos.`;
+  $("winnerToast").classList.remove("hidden");
   $("status").classList.add("bingo");
-  $("status").textContent=`🏁 Partida encerrada — ${name} venceu!`;
+  $("status").textContent=`🏁 Partida encerrada — ${safeName} venceu!`;
 
-  renderBoard();
+  $("winnerTitle").textContent = safeName===playerName ? "VOCÊ VENCEU!" : `${safeName} VENCEU!`;
+  $("winnerMessage").textContent = safeName===playerName
+    ? "Parabéns! Você completou o objetivo da partida."
+    : `A partida terminou. ${safeName} completou o objetivo primeiro.`;
+  $("winnerOverlay").classList.remove("hidden");
+
+  renderBoard();sendProgress();
 }
 
-$("soloBtn").addEventListener("click",()=>{
-  mode="solo";
-  $("nameTitle").textContent="Seu nome";
-  $("nameSub").textContent="Escolha um nome ou apelido.";
-  show("nameScreen");
-});
-$("hostBtn").addEventListener("click",()=>{
-  mode="host";
-  $("nameTitle").textContent="Criar partida";
-  $("nameSub").textContent="Digite seu nome. Depois vamos gerar o QR Code da sala.";
-  show("nameScreen");
-});
-$("joinBtn").addEventListener("click",()=>{
-  mode="join";
-  $("nameTitle").textContent="Entrar na partida";
-  $("nameSub").textContent="Digite seu nome para entrar na sala.";
-  show("nameScreen");
-});
+/* Música procedural simples: não baixa nem reproduz música de terceiros. */
+function startMusic(){
+  if(musicOn)return;
+  musicOn=true;$("musicBtn").classList.add("on");$("musicBtn").innerHTML='<i class="fa-solid fa-volume-high"></i> Música ligada';
+  audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+  const notes=[261.63,329.63,392.00,329.63,293.66,349.23,440.00,349.23];
+  function tick(){
+    if(!musicOn)return;
+    const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+    osc.type="sine";osc.frequency.value=notes[musicStep%notes.length];musicStep++;
+    gain.gain.setValueAtTime(.0001,audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.035,audioCtx.currentTime+.02);
+    gain.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+.32);
+    osc.connect(gain);gain.connect(audioCtx.destination);osc.start();osc.stop(audioCtx.currentTime+.35);
+    musicTimer=setTimeout(tick,430);
+  }
+  tick();
+}
+function stopMusic(){
+  musicOn=false;clearTimeout(musicTimer);$("musicBtn").classList.remove("on");
+  $("musicBtn").innerHTML='<i class="fa-solid fa-music"></i> Música';
+}
+$("musicBtn").addEventListener("click",()=>musicOn?stopMusic():startMusic());
+
+$("soloBtn").addEventListener("click",()=>{mode="solo";$("nameTitle").textContent="Seu nome";$("nameSub").textContent="Escolha um nome ou apelido.";show("nameScreen")});
+$("hostBtn").addEventListener("click",()=>{mode="host";$("nameTitle").textContent="Criar partida";$("nameSub").textContent="Digite seu nome. Depois você escolhe as regras.";show("nameScreen")});
+$("joinBtn").addEventListener("click",()=>{mode="join";$("nameTitle").textContent="Entrar na partida";$("nameSub").textContent="Digite seu nome para entrar na sala.";show("nameScreen")});
 $("backName").addEventListener("click",()=>show("homeScreen"));
 $("backJoin").addEventListener("click",()=>show("homeScreen"));
 
 $("continueName").addEventListener("click",()=>{
-  playerName=$("playerName").value.trim() || "Jogador";
-  if(mode==="solo"){
-    category="Rua";
-    startSoloGame();
-  }else if(mode==="host"){
-    show("lobbyScreen");
-    $("lobbyHint").textContent="Criando a sala...";
-    $("hostShareBox").classList.add("hidden");
-    $("hostControls").classList.add("hidden");
-    startPeerAsHost();
-  }else{
-    show("joinScreen");
-    const urlRoom=new URL(location.href).searchParams.get("room");
-    if(urlRoom) $("roomInput").value=urlRoom;
-  }
+  playerName=$("playerName").value.trim()||"Jogador";
+  if(mode==="join"){
+    show("joinScreen");const r=new URL(location.href).searchParams.get("room");if(r)$("roomInput").value=r;
+  }else show("setupScreen");
 });
 
+document.querySelectorAll(".category").forEach(btn=>btn.addEventListener("click",()=>{
+  category=btn.dataset.category;document.querySelectorAll(".category").forEach(x=>x.classList.toggle("active",x===btn));
+}));
+document.querySelectorAll(".option").forEach(btn=>btn.addEventListener("click",()=>{
+  goal=btn.dataset.goal;document.querySelectorAll(".option").forEach(x=>x.classList.toggle("active",x===btn));
+}));
+
+$("confirmSetup").addEventListener("click",()=>{
+  if(mode==="solo")startSoloGame();
+  else{
+    show("lobbyScreen");$("lobbyHint").textContent="Criando a sala...";
+    $("hostShareBox").classList.add("hidden");$("hostControls").classList.add("hidden");startPeerAsHost();
+  }
+});
 $("connectBtn").addEventListener("click",()=>{
   const room=$("roomInput").value.trim();
-  if(!room){
-    $("joinError").classList.remove("hidden");
-    $("joinError").textContent="Digite ou abra um código de sala válido.";
-    return;
-  }
+  if(!room){$("joinError").classList.remove("hidden");$("joinError").textContent="Digite um código de sala válido.";return}
   joinRoom(room);
 });
-
-document.querySelectorAll(".category").forEach(btn=>{
-  btn.addEventListener("click",()=>{
-    category=btn.dataset.category;
-    document.querySelectorAll(".category").forEach(x=>x.classList.toggle("active",x===btn));
-  });
-});
-
 $("startGameBtn").addEventListener("click",startHostedGame);
 
-(function autoJoinFromQr(){
+(function autoJoin(){
   const room=new URL(location.href).searchParams.get("room");
-  if(room){
-    mode="join";
-    $("nameTitle").textContent="Você foi convidado!";
-    $("nameSub").textContent="Digite seu nome para entrar nessa partida.";
-    $("roomInput").value=room;
-    show("nameScreen");
-  }
+  if(room){mode="join";$("nameTitle").textContent="Você foi convidado!";$("nameSub").textContent="Digite seu nome para entrar nessa partida.";$("roomInput").value=room;show("nameScreen")}
 })();
+
+$("winnerCloseBtn").addEventListener("click",()=>$("winnerOverlay").classList.add("hidden"));
+$("winnerHomeBtn").addEventListener("click",()=>{
+  $("winnerOverlay").classList.add("hidden");
+  stopMusic();
+  gameOver=false;hasWon=false;selected=new Set();
+  if(peer){try{peer.destroy()}catch(e){}}
+  peer=null;hostConnection=null;clientConnections=[];progressMap={};
+  const u=new URL(location.href);u.search="";history.replaceState({}, "", u.pathname);
+  show("homeScreen");
+});
+
+
+let deferredInstallPrompt = null;
+
+function isStandalone(){
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function isIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function isSafariIOS(){
+  return isIOS() && /safari/i.test(navigator.userAgent) && !/crios|fxios|edgios/i.test(navigator.userAgent);
+}
+
+function updateInstallUI(){
+  const banner=$("installBanner");
+  if(isStandalone()){
+    banner.classList.add("hidden");
+    return;
+  }
+
+  if(deferredInstallPrompt){
+    $("installText").textContent="Instale para abrir direto pela tela inicial.";
+    $("installBtn").textContent="📲 Instalar";
+    banner.classList.remove("hidden");
+    return;
+  }
+
+  if(isSafariIOS()){
+    $("installText").textContent="No iPhone, adicione o jogo à Tela de Início.";
+    $("installBtn").textContent="Ver como instalar";
+    banner.classList.remove("hidden");
+    return;
+  }
+
+  banner.classList.add("hidden");
+}
+
+window.addEventListener("beforeinstallprompt", event=>{
+  event.preventDefault();
+  deferredInstallPrompt=event;
+  updateInstallUI();
+});
+
+window.addEventListener("appinstalled", ()=>{
+  deferredInstallPrompt=null;
+  $("installBanner").classList.add("hidden");
+});
+
+$("installBtn").addEventListener("click", async ()=>{
+  if(deferredInstallPrompt){
+    deferredInstallPrompt.prompt();
+    try{
+      await deferredInstallPrompt.userChoice;
+    }catch(e){}
+    deferredInstallPrompt=null;
+    updateInstallUI();
+    return;
+  }
+
+  if(isSafariIOS()){
+    $("iosHelp").classList.remove("hidden");
+  }
+});
+
+$("iosCloseBtn").addEventListener("click",()=>$("iosHelp").classList.add("hidden"));
+
+window.addEventListener("load",updateInstallUI);
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
+  });
+}
+
 </script>
 </body>
 </html>
