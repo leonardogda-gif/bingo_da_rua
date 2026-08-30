@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2563eb">
-  <title>Bingo da Rua V1.17</title>
+  <title>Bingo da Rua V2.0</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -257,6 +257,46 @@
       .app{min-height:100dvh}
     }
 
+  
+    .game-hub{margin:14px 0 6px}
+    .game-hub-title{font-size:.82rem;color:#64748b;font-weight:850;margin:0 0 8px}
+    .game-mode-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    .game-mode-card{
+      border:1px solid #e2e8f0;background:#fff;border-radius:18px;padding:14px 10px;
+      min-height:112px;text-align:left;cursor:pointer;box-shadow:0 5px 14px rgba(15,23,42,.05)
+    }
+    .game-mode-card.active{outline:3px solid #bfdbfe;border-color:#2563eb}
+    .game-mode-icon{font-size:2rem;display:block;margin-bottom:7px}
+    .game-mode-card strong{display:block;font-size:.9rem;color:#0f172a}
+    .game-mode-card small{display:block;margin-top:3px;color:#64748b;line-height:1.25}
+    .mode-stage{
+      background:#fff;border:1px solid #e2e8f0;border-radius:22px;padding:16px;
+      box-shadow:0 8px 24px rgba(15,23,42,.06);margin-top:12px
+    }
+    .challenge-object{text-align:center;padding:18px 8px}
+    .challenge-object .big{font-size:4.8rem;line-height:1}
+    .challenge-object h2{margin:10px 0 4px;font-size:1.45rem}
+    .challenge-object p{margin:0;color:#64748b}
+    .found-btn{
+      width:100%;border:0;border-radius:18px;min-height:58px;background:#16a34a;
+      color:#fff;font-size:1.1rem;font-weight:950;cursor:pointer;margin-top:12px
+    }
+    .treasure-list{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+    .treasure-item{
+      border:1px solid #e2e8f0;background:#fff;border-radius:16px;padding:10px;
+      display:flex;align-items:center;gap:8px;font-weight:850;cursor:pointer;text-align:left
+    }
+    .treasure-item .e{font-size:1.8rem}
+    .treasure-item.done{background:#dcfce7;border-color:#86efac;text-decoration:line-through;opacity:.72}
+    .color-target{
+      width:118px;height:118px;border-radius:50%;margin:10px auto 16px;
+      box-shadow:inset 0 0 0 8px rgba(255,255,255,.6),0 8px 22px rgba(15,23,42,.15)
+    }
+    .score-strip{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:10px 0}
+    .score-pill{background:#eff6ff;border:1px solid #bfdbfe;border-radius:999px;padding:7px 11px;font-weight:900}
+    .tiny-note{font-size:.74rem;color:#64748b;text-align:center;margin-top:8px}
+    @media(max-width:420px){.game-mode-grid{grid-template-columns:1fr 1fr}.game-mode-card{padding:11px 8px}}
+
   </style>
 
   <link rel="manifest" href="./manifest.webmanifest">
@@ -295,6 +335,29 @@
   <section id="homeScreen" class="panel">
     <h2 class="screen-title">Como você quer jogar?</h2>
     <p class="screen-sub">No multiplayer, todos precisam estar conectados à internet.</p>
+    
+    <div class="game-hub">
+      <div class="game-hub-title">ESCOLHA O JOGO</div>
+      <div class="game-mode-grid">
+        <button class="game-mode-card active" data-game="bingo" type="button">
+          <span class="game-mode-icon">🎯</span><strong>Bingo</strong>
+          <small>Complete linha ou cartela.</small>
+        </button>
+        <button class="game-mode-card" data-game="race" type="button">
+          <span class="game-mode-icon">👀</span><strong>Quem acha primeiro?</strong>
+          <small>Encontre o objeto antes dos outros.</small>
+        </button>
+        <button class="game-mode-card" data-game="treasure" type="button">
+          <span class="game-mode-icon">🗺️</span><strong>Caça ao Tesouro</strong>
+          <small>Complete uma lista de missões.</small>
+        </button>
+        <button class="game-mode-card" data-game="colors" type="button">
+          <span class="game-mode-icon">🎨</span><strong>Caça às Cores</strong>
+          <small>Encontre coisas da cor sorteada.</small>
+        </button>
+      </div>
+    </div>
+
     <div class="home-actions">
       <button id="soloBtn" class="big-action" type="button"><i class="fa-solid fa-user"></i><span>Jogar sozinho</span></button>
       <button id="hostBtn" class="big-action primary" type="button"><i class="fa-solid fa-users"></i><span>Criar partida</span></button>
@@ -374,7 +437,21 @@
     </div>
   </section>
 
-  <section id="gameScreen" class="panel hidden">
+  
+  <section id="arcadeScreen" class="panel hidden">
+    <div class="topbar">
+      <button id="arcadeBackBtn" class="icon-btn" type="button">←</button>
+      <div>
+        <div id="arcadeTitle" style="font-weight:950">Jogo</div>
+        <div id="arcadeSubtitle" style="font-size:.76rem;color:#64748b"></div>
+      </div>
+      <button id="arcadeMusicBtn" class="icon-btn" type="button">🎵</button>
+    </div>
+    <div id="arcadeScore" class="score-strip"></div>
+    <div id="arcadeStage" class="mode-stage"></div>
+  </section>
+
+<section id="gameScreen" class="panel hidden">
     <div class="game-head">
       <div>
         <div id="currentCategory" class="mode">Rua</div>
@@ -445,7 +522,7 @@
     </div>
   </div>
 
-  <div class="footer">Bingo da Rua • V1.17 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
+  <div class="footer">Bingo da Rua • V2.0 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
 </main>
 
 <script>
@@ -630,6 +707,13 @@ function startHostedGame(){
   startGameScreen();broadcastProgress();
 }
 function startSoloGame(){
+  if(selectedGame!=="bingo"){
+    gameOver=false;
+    $("winnerOverlay").classList.add("hidden");
+    startArcadeGame();
+    return;
+  }
+
   sharedItems=shuffle(banks[category]).slice(0,16);
   cards=shuffle(sharedItems);selected=new Set();hasWon=false;gameOver=false;startGameScreen();
 }
@@ -809,7 +893,12 @@ $("winnerRestartBtn").addEventListener("click",()=>{
   const btn=$("winnerRestartBtn");
 
   if(mode==="solo"){
-    startSoloGame();
+    if(selectedGame!=="bingo"){
+      $("winnerOverlay").classList.add("hidden");
+      startArcadeGame();
+    }else{
+      startSoloGame();
+    }
     return;
   }
 
@@ -924,7 +1013,7 @@ $("scanQrBtn").addEventListener("click", async ()=>{
 
 $("scannerCloseBtn").addEventListener("click", stopQrScanner);
 
-const CURRENT_VERSION = "1.17";
+const CURRENT_VERSION = "2.0";
 let autoUpdating = false;
 
 async function forceLoadPublishedVersion(publishedVersion){
@@ -1026,6 +1115,140 @@ $("forceUpdateBtn").addEventListener("click", async ()=>{
     alert("Não foi possível atualizar automaticamente. Tente novamente.");
   }
 });
+
+
+let selectedGame = "bingo";
+let arcadeItems = [];
+let arcadeIndex = 0;
+let arcadePoints = 0;
+let arcadeDone = new Set();
+
+const arcadeEmoji = {
+  "Semáforo":"🚦","Ônibus":"🚌","Cachorro":"🐶","Bicicleta":"🚲","Árvore":"🌳",
+  "Caminhão":"🚚","Moto":"🏍️","Posto":"⛽","Táxi":"🚕","Escola":"🏫",
+  "Ambulância":"🚑","Ponte":"🌉","Obra":"🚧","Polícia":"🚓","Pássaro":"🐦",
+  "Mercado":"🛒","Prédio":"🏢","Pedestre":"🚶","Hospital":"🏥","Flor":"🌺",
+  "Carreta":"🚛","Vaca":"🐄","Plantação":"🌾","Morro":"⛰️","Trator":"🚜",
+  "Cavalo":"🐎","Nuvem":"☁️","Fábrica":"🏭","Van":"🚐","Bola":"⚽",
+  "Borboleta":"🦋","Formiga":"🐜","Patinete":"🛴","Piquenique":"🧺",
+  "Grama":"🌿","Fonte":"⛲","Pipa":"🪁","Skate":"🛹"
+};
+
+const arcadeFallback = [
+  ["Semáforo","🚦"],["Ônibus","🚌"],["Cachorro","🐶"],["Bicicleta","🚲"],
+  ["Árvore","🌳"],["Caminhão","🚚"],["Moto","🏍️"],["Posto","⛽"],
+  ["Táxi","🚕"],["Escola","🏫"],["Ambulância","🚑"],["Ponte","🌉"],
+  ["Obra","🚧"],["Polícia","🚓"],["Pássaro","🐦"],["Mercado","🛒"],
+  ["Prédio","🏢"],["Pedestre","🚶"],["Hospital","🏥"],["Flor","🌺"],
+  ["Carreta","🚛"],["Trator","🚜"],["Vaca","🐄"],["Fábrica","🏭"]
+];
+
+function gameNamesForCategory(){
+  try{
+    const bank=banks[category]||banks.Rua;
+    return bank.map(item=>{
+      if(item.length>=4) return [item[1], arcadeEmoji[item[1]]||item[2]||"🔎"];
+      return [item[0], item[1]||"🔎"];
+    });
+  }catch(e){return arcadeFallback;}
+}
+
+function shuffled(arr){return [...arr].sort(()=>Math.random()-.5)}
+
+function setSelectedGame(game){
+  selectedGame=game;
+  document.querySelectorAll(".game-mode-card").forEach(b=>b.classList.toggle("active",b.dataset.game===game));
+}
+
+document.querySelectorAll(".game-mode-card").forEach(btn=>{
+  btn.addEventListener("click",()=>setSelectedGame(btn.dataset.game));
+});
+
+function vibrate(ms=40){try{if(navigator.vibrate)navigator.vibrate(ms)}catch(e){}}
+
+function arcadeWin(label){
+  vibrate([80,60,120]);
+  if(typeof playVictoryJingle==="function") playVictoryJingle();
+  $("winnerName").textContent = label || "VOCÊ VENCEU!";
+  $("winnerOverlay").classList.remove("hidden");
+}
+
+function startArcadeGame(){
+  arcadePoints=0;arcadeIndex=0;arcadeDone=new Set();
+  arcadeItems=shuffled(gameNamesForCategory());
+  show("arcadeScreen");
+  renderArcade();
+}
+
+function renderArcade(){
+  const stage=$("arcadeStage");
+  const score=$("arcadeScore");
+  score.innerHTML="";
+
+  if(selectedGame==="race"){
+    $("arcadeTitle").textContent="👀 Quem acha primeiro?";
+    $("arcadeSubtitle").textContent="Primeiro a 10 pontos";
+    score.innerHTML=`<span class="score-pill">⭐ ${arcadePoints}/10</span>`;
+    const item=arcadeItems[arcadeIndex % arcadeItems.length];
+    stage.innerHTML=`<div class="challenge-object">
+      <div class="big">${item[1]}</div><h2>Encontre ${escapeHtml(item[0])}</h2>
+      <p>Achou? Toque no botão.</p>
+      <button id="arcadeFound" class="found-btn" type="button">ACHEI! +1</button>
+      <div class="tiny-note">No multiplayer, todos recebem o mesmo desafio.</div>
+    </div>`;
+    $("arcadeFound").onclick=()=>{
+      vibrate();arcadePoints++;
+      if(arcadePoints>=10){arcadeWin("VOCÊ VENCEU!");return;}
+      arcadeIndex++;renderArcade();
+    };
+    return;
+  }
+
+  if(selectedGame==="treasure"){
+    $("arcadeTitle").textContent="🗺️ Caça ao Tesouro";
+    $("arcadeSubtitle").textContent="Encontre os 10 itens";
+    const list=arcadeItems.slice(0,10);
+    score.innerHTML=`<span class="score-pill">🔎 ${arcadeDone.size}/10</span>`;
+    stage.innerHTML=`<div class="treasure-list">${list.map((it,i)=>`
+      <button class="treasure-item ${arcadeDone.has(i)?"done":""}" data-i="${i}" type="button">
+        <span class="e">${it[1]}</span><span>${escapeHtml(it[0])}</span>
+      </button>`).join("")}</div>`;
+    stage.querySelectorAll(".treasure-item").forEach(b=>b.onclick=()=>{
+      const i=+b.dataset.i;
+      if(arcadeDone.has(i))arcadeDone.delete(i);else{arcadeDone.add(i);vibrate();}
+      if(arcadeDone.size>=10){arcadeWin("TESOURO COMPLETO!");return;}
+      renderArcade();
+    });
+    return;
+  }
+
+  if(selectedGame==="colors"){
+    $("arcadeTitle").textContent="🎨 Caça às Cores";
+    $("arcadeSubtitle").textContent="Encontre 8 cores";
+    const colors=[
+      ["Vermelho","#ef4444"],["Azul","#3b82f6"],["Amarelo","#facc15"],["Verde","#22c55e"],
+      ["Laranja","#f97316"],["Roxo","#a855f7"],["Rosa","#ec4899"],["Branco","#f8fafc"],
+      ["Preto","#111827"],["Marrom","#92400e"]
+    ];
+    const c=colors[arcadeIndex%colors.length];
+    score.innerHTML=`<span class="score-pill">🎨 ${arcadePoints}/8</span>`;
+    stage.innerHTML=`<div class="challenge-object">
+      <div class="color-target" style="background:${c[1]}"></div>
+      <h2>Encontre algo ${c[0]}</h2>
+      <p>Olhe pela janela e procure essa cor.</p>
+      <button id="arcadeFound" class="found-btn" type="button">ACHEI!</button>
+    </div>`;
+    $("arcadeFound").onclick=()=>{
+      vibrate();arcadePoints++;
+      if(arcadePoints>=8){arcadeWin("DESAFIO DAS CORES COMPLETO!");return;}
+      arcadeIndex++;renderArcade();
+    };
+  }
+}
+
+$("arcadeBackBtn").addEventListener("click",()=>show("homeScreen"));
+$("arcadeMusicBtn").addEventListener("click",()=>$("musicBtn")?.click());
+
 
 let deferredInstallPrompt = null;
 
