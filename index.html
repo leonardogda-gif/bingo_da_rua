@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2563eb">
-  <title>Bingo da Rua V1.8</title>
+  <title>Bingo da Rua V1.10</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js">
@@ -89,6 +89,21 @@ $("iosCloseBtn").addEventListener("click",()=>$("iosHelp").classList.add("hidden
 
 window.addEventListener("load",updateInstallUI);
 
+
+
+const CURRENT_VERSION = "1.10";
+
+async function checkForNewVersion(){
+  try{
+    const response=await fetch(`./version.json?_=${Date.now()}`,{cache:"no-store"});
+    if(!response.ok)return;
+    const info=await response.json();
+    $("updateBox").classList.toggle("hidden", !info.version || info.version===CURRENT_VERSION);
+  }catch(e){
+    $("updateBox").classList.add("hidden");
+  }
+}
+window.addEventListener("load",()=>{checkForNewVersion();setTimeout(checkForNewVersion,3000);});
 
 $("forceUpdateBtn").addEventListener("click", async ()=>{
   const btn=$("forceUpdateBtn");
@@ -344,9 +359,11 @@ if("serviceWorker" in navigator){
     }
     .install-copy{display:flex;align-items:center;gap:10px;min-width:0}
     .install-icon{
-      width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
-      background:#2563eb;color:#fff;font-size:18px;flex:0 0 auto
+      width:48px;height:48px;border-radius:14px;display:grid;place-items:center;
+      background:#fff;color:#fff;font-size:18px;flex:0 0 auto;overflow:hidden;
+      box-shadow:0 4px 12px rgba(37,99,235,.16)
     }
+    .app-install-logo img{width:100%;height:100%;object-fit:cover;display:block}
     .install-text strong{display:block;font-size:.9rem}
     .install-text span{display:block;color:#64748b;font-size:.76rem;margin-top:2px;line-height:1.25}
     .install-action{
@@ -448,7 +465,7 @@ if("serviceWorker" in navigator){
 
   <div id="installBanner" class="install-banner hidden">
     <div class="install-copy">
-      <div class="install-icon"><i class="fa-solid fa-mobile-screen-button"></i></div>
+      <div class="install-icon app-install-logo"><img src="./icon-192.png" alt=""></div>
       <div class="install-text">
         <strong>Instalar Bingo da Rua</strong>
         <span id="installText">Jogue como aplicativo na tela inicial.</span>
@@ -465,7 +482,7 @@ if("serviceWorker" in navigator){
       <button id="hostBtn" class="big-action primary" type="button"><i class="fa-solid fa-users"></i><span>Criar partida</span></button>
       <button id="joinBtn" class="big-action" type="button"><i class="fa-solid fa-qrcode"></i><span>Entrar na partida</span></button>
     </div>
-    <div class="update-box">
+    <div id="updateBox" class="update-box hidden">
       <button id="forceUpdateBtn" class="update-btn" type="button">
         <i class="fa-solid fa-arrows-rotate"></i> Atualizar para a versão mais recente
       </button>
@@ -596,7 +613,7 @@ if("serviceWorker" in navigator){
     </div>
   </div>
 
-  <div class="footer">Bingo da Rua • V1.8 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
+  <div class="footer">Bingo da Rua • V1.10 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
 </main>
 
 <script>
@@ -839,8 +856,37 @@ function updateGame(){
     $("status").textContent=`Boa! Você já encontrou ${selected.size} ${selected.size===1?"item":"itens"}.`;
   }
 }
+
+function playVictoryJingle(){
+  try{
+    const ctx=audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    audioCtx=ctx;
+    if(ctx.state==="suspended")ctx.resume();
+
+    const now=ctx.currentTime;
+    const melody=[
+      [523.25,0.00,.14],[659.25,.15,.14],[783.99,.30,.16],
+      [1046.50,.48,.22],[783.99,.73,.12],[1046.50,.88,.38]
+    ];
+
+    melody.forEach(([freq,delay,duration])=>{
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      osc.type="triangle";
+      osc.frequency.setValueAtTime(freq,now+delay);
+      gain.gain.setValueAtTime(.0001,now+delay);
+      gain.gain.exponentialRampToValueAtTime(.09,now+delay+.018);
+      gain.gain.exponentialRampToValueAtTime(.0001,now+delay+duration);
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.start(now+delay);osc.stop(now+delay+duration+.03);
+    });
+  }catch(e){}
+}
+
 function endGame(name){
   gameOver=true;
+  if(musicOn) stopMusic();
+  playVictoryJingle();
   const safeName=name||"Jogador";
   $("winnerToast").textContent=`🏆 ${safeName} venceu! A partida foi encerrada para todos.`;
   $("winnerToast").classList.remove("hidden");

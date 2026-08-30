@@ -1,8 +1,9 @@
-const CACHE = "bingo-da-rua-v1-8";
+const CACHE = "bingo-da-rua-v1-10";
 const CORE = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
+  "./version.json",
   "./icon-192.png",
   "./icon-512.png"
 ];
