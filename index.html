@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2563eb">
-  <title>Bingo da Rua V1.13</title>
+  <title>Bingo da Rua V1.14</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js">
@@ -64,6 +64,8 @@ function isSafariIOS(){
 }
 
 function updateInstallUI(){
+  // A true installed PWA opens in standalone mode, without the browser address bar.
+
   const banner=$("installBanner");
   if(isStandalone()){
     banner.classList.add("hidden");
@@ -120,7 +122,7 @@ window.addEventListener("load",updateInstallUI);
 
 
 
-const CURRENT_VERSION = "1.13";
+const CURRENT_VERSION = "1.14";
 
 async function checkForNewVersion(){
   try{
@@ -198,6 +200,8 @@ function isSafariIOS(){
 }
 
 function updateInstallUI(){
+  // A true installed PWA opens in standalone mode, without the browser address bar.
+
   const banner=$("installBanner");
   if(isStandalone()){
     banner.classList.add("hidden");
@@ -472,10 +476,26 @@ if("serviceWorker" in navigator){
       .categories,.options{gap:6px}
       .category{font-size:.74rem}.option{padding:9px}
     }
+  
+    html,body{min-height:100%;min-height:100dvh}
+    @media (display-mode: standalone){
+      body{
+        min-height:100dvh;
+        padding-top:env(safe-area-inset-top);
+        padding-bottom:env(safe-area-inset-bottom);
+        overscroll-behavior-y:none;
+      }
+      .app{min-height:100dvh}
+    }
+
   </style>
 
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="Bingo da Rua">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Bingo da Rua">
@@ -643,7 +663,7 @@ if("serviceWorker" in navigator){
     </div>
   </div>
 
-  <div class="footer">Bingo da Rua • V1.13 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
+  <div class="footer">Bingo da Rua • V1.14 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
 </main>
 
 <script>
@@ -1029,6 +1049,8 @@ function isSafariIOS(){
 }
 
 function updateInstallUI(){
+  // A true installed PWA opens in standalone mode, without the browser address bar.
+
   const banner=$("installBanner");
   if(isStandalone()){
     banner.classList.add("hidden");
