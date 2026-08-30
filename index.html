@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2563eb">
-  <title>Bingo da Rua V1.16</title>
+  <title>Bingo da Rua V1.17</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -445,7 +445,7 @@
     </div>
   </div>
 
-  <div class="footer">Bingo da Rua • V1.16 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
+  <div class="footer">Bingo da Rua • V1.17 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
 </main>
 
 <script>
@@ -924,21 +924,79 @@ $("scanQrBtn").addEventListener("click", async ()=>{
 
 $("scannerCloseBtn").addEventListener("click", stopQrScanner);
 
-const CURRENT_VERSION = "1.16";
+const CURRENT_VERSION = "1.17";
+let autoUpdating = false;
+
+async function forceLoadPublishedVersion(publishedVersion){
+  if(autoUpdating) return;
+  autoUpdating = true;
+
+  try{
+    if("caches" in window){
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter(k => k.startsWith("bingo-da-rua-"))
+          .map(k => caches.delete(k))
+      );
+    }
+
+    if("serviceWorker" in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(async reg => {
+        try{ await reg.update(); }catch(e){}
+        try{ await reg.unregister(); }catch(e){}
+      }));
+    }
+  }catch(e){}
+
+  const u = new URL(location.href);
+  u.searchParams.set("_v", publishedVersion || Date.now().toString());
+  u.searchParams.set("_reload", Date.now().toString());
+  location.replace(u.toString());
+}
 
 async function checkForNewVersion(){
   try{
-    const response=await fetch(`./version.json?_=${Date.now()}`,{cache:"no-store"});
-    if(!response.ok)return;
-    const info=await response.json();
-    $("updateBox").classList.toggle("hidden", !info.version || info.version===CURRENT_VERSION);
+    const response = await fetch(`./version.json?_=${Date.now()}`, {
+      cache: "no-store",
+      headers: {"Cache-Control":"no-cache"}
+    });
+    if(!response.ok) return;
+
+    const info = await response.json();
+
+    if(info.version && info.version !== CURRENT_VERSION){
+      $("updateBox").classList.remove("hidden");
+
+      // When opened as an installed PWA, update automatically.
+      if(isStandalone()){
+        setTimeout(()=>forceLoadPublishedVersion(info.version), 350);
+      }
+    }else{
+      $("updateBox").classList.add("hidden");
+    }
   }catch(e){
     $("updateBox").classList.add("hidden");
   }
 }
-window.addEventListener("load",()=>{
+
+window.addEventListener("load", async ()=>{
+  if("serviceWorker" in navigator){
+    try{
+      const reg = await navigator.serviceWorker.getRegistration();
+      if(reg) await reg.update();
+    }catch(e){}
+  }
+
   checkForNewVersion();
-  setTimeout(checkForNewVersion,3000);
+  setTimeout(checkForNewVersion,2500);
+});
+
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible"){
+    checkForNewVersion();
+  }
 });
 
 $("forceUpdateBtn").addEventListener("click", async ()=>{
@@ -1042,7 +1100,7 @@ window.addEventListener("load",updateInstallUI);
 
 if("serviceWorker" in navigator){
   window.addEventListener("load",()=>{
-    navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
+    navigator.serviceWorker.register("./service-worker.js",{updateViaCache:"none"}).catch(()=>{});
   });
 }
 
