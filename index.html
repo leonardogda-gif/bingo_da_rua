@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2563eb">
-  <title>Bingo da Rua V2.0</title>
+  <title>Bingo da Rua V2.1</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -391,15 +391,19 @@
       <button class="category" data-category="Parque" type="button"><i class="fa-solid fa-tree"></i> Parque</button>
     </div>
 
-    <strong>Tipo de partida</strong>
-    <div class="options">
+    <div id="bingoGoalSetup">
+      <strong>Tipo de partida</strong>
+      <div class="options">
       <button class="option active" data-goal="line" type="button">
         <strong>➖ Uma linha</strong><span>Vence ao completar linha, coluna ou diagonal.</span>
       </button>
       <button class="option" data-goal="full" type="button">
         <strong>🏁 Cartela inteira</strong><span>Vence somente depois de encontrar os 16 itens.</span>
       </button>
+      </div>
     </div>
+
+    <div id="arcadeSetupHint" class="status hidden" style="margin-top:12px"></div>
 
     <button id="confirmSetup" class="btn btn-primary" type="button">Continuar</button>
   </section>
@@ -522,7 +526,7 @@
     </div>
   </div>
 
-  <div class="footer">Bingo da Rua • V2.0 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
+  <div class="footer">Bingo da Rua • V2.1 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
 </main>
 
 <script>
@@ -554,7 +558,7 @@ const banks = {
   ]
 };
 
-const screens=["homeScreen","nameScreen","setupScreen","joinScreen","lobbyScreen","gameScreen"];
+const screens=["homeScreen","nameScreen","setupScreen","joinScreen","lobbyScreen","arcadeScreen","gameScreen"];
 const $=id=>document.getElementById(id);
 function show(id){screens.forEach(s=>$(s).classList.toggle("hidden",s!==id))}
 
@@ -859,7 +863,10 @@ $("continueName").addEventListener("click",()=>{
   playerName=$("playerName").value.trim()||"Jogador";
   if(mode==="join"){
     show("joinScreen");const r=new URL(location.href).searchParams.get("room");if(r)$("roomInput").value=r;
-  }else show("setupScreen");
+  }else{
+    updateSetupForSelectedGame();
+    show("setupScreen");
+  }
 });
 
 document.querySelectorAll(".category").forEach(btn=>btn.addEventListener("click",()=>{
@@ -1013,7 +1020,7 @@ $("scanQrBtn").addEventListener("click", async ()=>{
 
 $("scannerCloseBtn").addEventListener("click", stopQrScanner);
 
-const CURRENT_VERSION = "2.0";
+const CURRENT_VERSION = "2.1";
 let autoUpdating = false;
 
 async function forceLoadPublishedVersion(publishedVersion){
@@ -1157,7 +1164,37 @@ function shuffled(arr){return [...arr].sort(()=>Math.random()-.5)}
 
 function setSelectedGame(game){
   selectedGame=game;
-  document.querySelectorAll(".game-mode-card").forEach(b=>b.classList.toggle("active",b.dataset.game===game));
+  document.querySelectorAll(".game-mode-card").forEach(
+    b=>b.classList.toggle("active",b.dataset.game===game)
+  );
+}
+
+function updateSetupForSelectedGame(){
+  const goalBox=$("bingoGoalSetup");
+  const hint=$("arcadeSetupHint");
+  const title=document.querySelector("#setupScreen .screen-title");
+  const sub=document.querySelector("#setupScreen .screen-sub");
+
+  if(selectedGame==="bingo"){
+    goalBox.classList.remove("hidden");
+    hint.classList.add("hidden");
+    title.textContent="Configure a partida";
+    sub.textContent="Escolha o cenário e como alguém vence.";
+    return;
+  }
+
+  goalBox.classList.add("hidden");
+  hint.classList.remove("hidden");
+  title.textContent="Escolha o cenário";
+
+  const descriptions={
+    race:"👀 Quem acha primeiro? — encontre os objetos sorteados e marque pontos.",
+    treasure:"🗺️ Caça ao Tesouro — encontre todos os itens da lista.",
+    colors:"🎨 Caça às Cores — encontre objetos das cores sorteadas."
+  };
+
+  sub.textContent="Escolha onde vocês estão jogando.";
+  hint.textContent=descriptions[selectedGame] || "";
 }
 
 document.querySelectorAll(".game-mode-card").forEach(btn=>{
@@ -1174,8 +1211,11 @@ function arcadeWin(label){
 }
 
 function startArcadeGame(){
-  arcadePoints=0;arcadeIndex=0;arcadeDone=new Set();
+  arcadePoints=0;
+  arcadeIndex=0;
+  arcadeDone=new Set();
   arcadeItems=shuffled(gameNamesForCategory());
+  gameOver=false;
   show("arcadeScreen");
   renderArcade();
 }
@@ -1246,7 +1286,7 @@ function renderArcade(){
   }
 }
 
-$("arcadeBackBtn").addEventListener("click",()=>show("homeScreen"));
+$("arcadeBackBtn").addEventListener("click",()=>{gameOver=false;show("homeScreen")});
 $("arcadeMusicBtn").addEventListener("click",()=>$("musicBtn")?.click());
 
 

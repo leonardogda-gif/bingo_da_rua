@@ -1,4 +1,4 @@
-const CACHE = "bingo-da-rua-v2-0";
+const CACHE = "bingo-da-rua-v2-1";
 
 const CORE = [
   "./index.html",
