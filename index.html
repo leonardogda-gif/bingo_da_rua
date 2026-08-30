@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2563eb">
-  <title>Bingo da Rua V2.1</title>
+  <title>Bingo da Rua V3.0</title>
 
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+  <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
@@ -297,6 +297,18 @@
     .tiny-note{font-size:.74rem;color:#64748b;text-align:center;margin-top:8px}
     @media(max-width:420px){.game-mode-grid{grid-template-columns:1fr 1fr}.game-mode-card{padding:11px 8px}}
 
+  
+    .network-notice{
+      margin:10px 0 0;padding:10px 12px;border-radius:14px;
+      background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;
+      font-size:.82rem;font-weight:800;line-height:1.35
+    }
+    .retry-btn{
+      margin-top:8px;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;
+      border-radius:12px;padding:9px 12px;font-weight:900;cursor:pointer
+    }
+    .round-lock{opacity:.6;pointer-events:none}
+
   </style>
 
   <link rel="manifest" href="./manifest.webmanifest">
@@ -335,6 +347,7 @@
   <section id="homeScreen" class="panel">
     <h2 class="screen-title">Como você quer jogar?</h2>
     <p class="screen-sub">No multiplayer, todos precisam estar conectados à internet.</p>
+    <div id="networkNotice" class="network-notice hidden">📴 Sem internet. Os jogos solo continuam disponíveis; o multiplayer precisa de conexão.</div>
     
     <div class="game-hub">
       <div class="game-hub-title">ESCOLHA O JOGO</div>
@@ -423,6 +436,7 @@
   <section id="lobbyScreen" class="panel hidden">
     <h2 class="screen-title">Sala da partida</h2>
     <p id="lobbyHint" class="screen-sub"></p>
+    <button id="reconnectBtn" class="retry-btn hidden" type="button">🔄 Tentar reconectar</button>
     <div class="lobby-grid">
       <div id="hostShareBox" class="qr-card hidden">
         <strong>Escaneie para entrar</strong>
@@ -526,7 +540,7 @@
     </div>
   </div>
 
-  <div class="footer">Bingo da Rua • V2.1 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
+  <div class="footer">Bingo da Rua • V3.0 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
 </main>
 
 <script>
@@ -560,7 +574,21 @@ const banks = {
 
 const screens=["homeScreen","nameScreen","setupScreen","joinScreen","lobbyScreen","arcadeScreen","gameScreen"];
 const $=id=>document.getElementById(id);
-function show(id){screens.forEach(s=>$(s).classList.toggle("hidden",s!==id))}
+function show(id){
+  screens.forEach(s=>$(s).classList.toggle("hidden",s!==id));
+
+  if(id==="setupScreen" && typeof updateSetupForSelectedGame==="function"){
+    updateSetupForSelectedGame();
+  }
+
+  if(id==="homeScreen"){
+    updateNetworkUI();
+    if(updatePending){
+      $("forceUpdateBtn").disabled=false;
+      $("forceUpdateBtn").textContent="🔄 Atualizar para a versão mais recente";
+    }
+  }
+}
 
 let mode="solo", playerName="", category="Rua", goal="line";
 let peer=null, hostConnection=null, clientConnections=[], hostPeerId="";
@@ -568,8 +596,42 @@ let sharedItems=[], cards=[], selected=new Set(), hasWon=false, gameOver=false, 
 let progressMap={};
 let musicOn=false, audioCtx=null, musicTimer=null, musicStep=0;
 
+let lastRoomId="";
+let reconnectAttempts=0;
+let reconnectTimer=null;
+let suppressDisconnect=false;
+let restartInProgress=false;
+
+let arcadeState=null;
+let arcadeRoundLocked=false;
+
+let pendingVersion="";
+let updatePending=false;
+
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function randomId(){return "bdr-"+Math.random().toString(36).slice(2,7)+"-"+Date.now().toString(36).slice(-4)}
+
+function updateNetworkUI(){
+  const online=navigator.onLine;
+  const peerReady=typeof Peer!=="undefined";
+  const available=online&&peerReady;
+
+  $("hostBtn").disabled=!available;
+  $("joinBtn").disabled=!available;
+  $("networkNotice").classList.toggle("hidden",available);
+
+  if(online&&!peerReady){
+    $("networkNotice").textContent=
+      "⚠️ O módulo de multiplayer não carregou. Os jogos solo continuam funcionando.";
+  }else{
+    $("networkNotice").textContent=
+      "📴 Sem internet. Os jogos solo continuam disponíveis; o multiplayer precisa de conexão.";
+  }
+}
+
+window.addEventListener("online",updateNetworkUI);
+window.addEventListener("offline",updateNetworkUI);
+window.addEventListener("load",updateNetworkUI);
 
 function shuffle(list,seedText=""){
   const a=[...list]; let seed=0;
@@ -593,40 +655,88 @@ function hasVictory(){
   return goal==="full" ? selected.size===16 : completedLines().length>0;
 }
 function ruleText(){
+  if(selectedGame==="race") return `${category} • Quem acha primeiro? • 10 pontos`;
+  if(selectedGame==="treasure") return `${category} • Caça ao Tesouro • 10 itens`;
+  if(selectedGame==="colors") return `${category} • Caça às Cores • 8 pontos`;
   return `${category} • ${goal==="full"?"Cartela inteira":"Uma linha, coluna ou diagonal"}`;
 }
 function getJoinUrl(id){
   const u=new URL(location.href);u.search="";u.hash="";u.searchParams.set("room",id);return u.toString();
 }
 
+function multiplayerAvailable(){
+  return navigator.onLine && typeof Peer !== "undefined";
+}
+
 function startPeerAsHost(){
+  if(!multiplayerAvailable()){
+    show("homeScreen");
+    updateNetworkUI();
+    return;
+  }
+
   hostPeerId=randomId();
   peer=new Peer(hostPeerId);
-  peer.on("open",id=>{hostPeerId=id;renderHostLobby()});
-  peer.on("connection",conn=>{clientConnections.push(conn);setupHostConnection(conn)});
-  peer.on("error",()=>{$("lobbyHint").textContent="Não foi possível criar a sala. Verifique a internet e tente novamente."});
+
+  peer.on("open",id=>{
+    hostPeerId=id;
+    renderHostLobby();
+  });
+
+  peer.on("connection",conn=>{
+    clientConnections.push(conn);
+    setupHostConnection(conn);
+  });
+
+  peer.on("error",err=>{
+    $("lobbyHint").textContent=
+      "Não foi possível criar a sala. Algumas redes bloqueiam conexões diretas. Tente outra rede ou os dados móveis.";
+  });
 }
 function setupHostConnection(conn){
   conn.on("data",data=>{
     if(data.type==="hello"){
-      conn.playerName=data.name||"Jogador";conn.playerSeed=data.seed||conn.peer;
-      progressMap[conn.peer]={name:conn.playerName,count:0};broadcastPlayers();broadcastProgress();
+      conn.playerName=data.name||"Jogador";
+      conn.playerSeed=data.seed||conn.peer;
+      progressMap[conn.peer]={name:conn.playerName,count:0};
+      broadcastPlayers();
+      if(selectedGame==="bingo") broadcastProgress();
     }
-    if(data.type==="progress"){
-      progressMap[conn.peer]={name:conn.playerName||data.name||"Jogador",count:Number(data.count)||0};
+
+    if(data.type==="progress" && selectedGame==="bingo"){
+      progressMap[conn.peer]={
+        name:conn.playerName||data.name||"Jogador",
+        count:Number(data.count)||0
+      };
       broadcastProgress();
     }
-    if(data.type==="bingo" && !gameOver){
-      gameOver=true;broadcast({type:"winner",name:data.name});endGame(data.name);
+
+    if(data.type==="bingo" && selectedGame==="bingo" && !gameOver){
+      gameOver=true;
+      broadcast({type:"winner",name:data.name});
+      endGame(data.name);
     }
-    if(data.type==="restartRequest" && gameOver){
+
+    if(data.type==="arcadeFound" && !gameOver){
+      processArcadeFound(conn.peer);
+    }
+
+    if(data.type==="arcadeTreasureToggle" && !gameOver){
+      processTreasureToggle(conn.peer, Number(data.index));
+    }
+
+    if(data.type==="restartRequest" && gameOver && !restartInProgress){
+      restartInProgress=true;
       startHostedGame();
+      setTimeout(()=>{restartInProgress=false},700);
     }
   });
+
   conn.on("close",()=>{
     delete progressMap[conn.peer];
     clientConnections=clientConnections.filter(c=>c!==conn);
-    broadcastPlayers();broadcastProgress();
+    broadcastPlayers();
+    if(selectedGame==="bingo") broadcastProgress();
   });
 }
 function renderHostLobby(){
@@ -635,8 +745,14 @@ function renderHostLobby(){
   $("lobbyHint").textContent="Mostre este QR Code aos outros jogadores.";
   $("lobbyRules").textContent="🎯 "+ruleText();
   $("roomCode").textContent=hostPeerId;
-  const link=getJoinUrl(hostPeerId);$("shareLink").textContent=link;$("qrcode").innerHTML="";
-  new QRCode($("qrcode"),{text:link,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});
+  const link=getJoinUrl(hostPeerId);
+  $("shareLink").textContent=link;
+  $("qrcode").innerHTML="";
+  if(typeof QRCode!=="undefined"){
+    new QRCode($("qrcode"),{text:link,width:220,height:220,correctLevel:QRCode.CorrectLevel.M});
+  }else{
+    $("qrcode").innerHTML="<div class=\"network-notice\">QR indisponível. Use o código da sala abaixo.</div>";
+  }
   progressMap[hostPeerId]={name:playerName,count:0};broadcastPlayers();
 }
 function broadcast(data){clientConnections.forEach(c=>{if(c.open)c.send(data)})}
@@ -645,7 +761,7 @@ function currentPlayers(){
 }
 function broadcastPlayers(){
   const list=currentPlayers();renderPlayers(list);
-  broadcast({type:"players",players:list,category,goal});
+  broadcast({type:"players",players:list,category,goal,selectedGame});
 }
 function renderPlayers(list){
   $("players").innerHTML=list.map(p=>`<div class="player"><div><div class="name">${escapeHtml(p.name)}</div><small>${p.host?"Anfitrião":"Jogador"}</small></div><span class="dot"></span></div>`).join("");
@@ -669,46 +785,219 @@ function renderScores(rows){
   }).join("");
 }
 
-function joinRoom(roomId){
-  $("joinError").classList.add("hidden"); peer=new Peer();
+function scheduleReconnect(){
+  if(suppressDisconnect || gameOver || !lastRoomId) return;
+
+  if(!navigator.onLine){
+    $("lobbyHint").textContent="A conexão caiu e o aparelho está sem internet.";
+    $("reconnectBtn").classList.remove("hidden");
+    return;
+  }
+
+  if(reconnectAttempts>=3){
+    $("lobbyHint").textContent="Não conseguimos reconectar automaticamente.";
+    $("reconnectBtn").classList.remove("hidden");
+    return;
+  }
+
+  reconnectAttempts++;
+  $("lobbyHint").textContent=`Conexão perdida. Tentando reconectar (${reconnectAttempts}/3)...`;
+  $("reconnectBtn").classList.add("hidden");
+
+  clearTimeout(reconnectTimer);
+  reconnectTimer=setTimeout(()=>{
+    joinRoom(lastRoomId,true);
+  },1200*reconnectAttempts);
+}
+
+function joinRoom(roomId,isReconnect=false){
+  lastRoomId=roomId;
+
+  if(!multiplayerAvailable()){
+    show("joinScreen");
+    $("joinError").classList.remove("hidden");
+    $("joinError").textContent="O multiplayer precisa de internet.";
+    updateNetworkUI();
+    return;
+  }
+
+  $("joinError").classList.add("hidden");
+
+  if(peer){
+    suppressDisconnect=true;
+    try{peer.destroy()}catch(e){}
+    suppressDisconnect=false;
+  }
+
+  peer=new Peer();
+
   peer.on("open",()=>{
     hostConnection=peer.connect(roomId,{reliable:true});
+
     hostConnection.on("open",()=>{
+      reconnectAttempts=0;
+      $("reconnectBtn").classList.add("hidden");
       playerSeed=peer.id;
-      hostConnection.send({type:"hello",name:playerName,seed:playerSeed});
-      show("lobbyScreen");$("hostShareBox").classList.add("hidden");$("hostControls").classList.add("hidden");
-      $("lobbyHint").textContent="Você entrou na sala. Aguarde o anfitrião começar.";
+
+      hostConnection.send({
+        type:"hello",
+        name:playerName,
+        seed:playerSeed
+      });
+
+      show("lobbyScreen");
+      $("hostShareBox").classList.add("hidden");
+      $("hostControls").classList.add("hidden");
+      $("lobbyHint").textContent=isReconnect
+        ? "Reconectado à sala."
+        : "Você entrou na sala. Aguarde o anfitrião começar.";
     });
+
     hostConnection.on("data",handleClientData);
-    hostConnection.on("close",()=>{$("lobbyHint").textContent="A conexão com o anfitrião foi encerrada."});
+    hostConnection.on("close",scheduleReconnect);
   });
+
   peer.on("error",()=>{
-    show("joinScreen");$("joinError").classList.remove("hidden");
-    $("joinError").textContent="Não foi possível entrar nessa sala. Confirme o código e tente novamente.";
+    if(isReconnect){
+      scheduleReconnect();
+      return;
+    }
+
+    show("joinScreen");
+    $("joinError").classList.remove("hidden");
+    $("joinError").textContent=
+      "Não foi possível entrar. Confirme o código. Se persistir, tente outra rede.";
   });
 }
 function handleClientData(data){
   if(data.type==="players"){
-    renderPlayers(data.players||[]);category=data.category||category;goal=data.goal||goal;
+    renderPlayers(data.players||[]);
+    category=data.category||category;
+    goal=data.goal||goal;
+    selectedGame=data.selectedGame||selectedGame;
     $("lobbyRules").textContent="🎯 "+ruleText();
   }
-  if(data.type==="progressAll") renderScores(data.rows||[]);
+
+  if(data.type==="progressAll" && selectedGame==="bingo"){
+    renderScores(data.rows||[]);
+  }
+
   if(data.type==="start"){
-    category=data.category;goal=data.goal;sharedItems=data.items;
-    cards=shuffle(sharedItems,playerSeed||playerName);selected=new Set();hasWon=false;gameOver=false;
+    selectedGame="bingo";
+    category=data.category;
+    goal=data.goal;
+    sharedItems=data.items;
+    cards=shuffle(sharedItems,playerSeed||playerName);
+    selected=new Set();
+    hasWon=false;
+    gameOver=false;
     startGameScreen();
   }
-  if(data.type==="winner") endGame(data.name);
+
+  if(data.type==="arcadeStart" || data.type==="arcadeState"){
+    arcadeState=data.state;
+    selectedGame=arcadeState.game;
+    category=arcadeState.category;
+    gameOver=Boolean(arcadeState.winner);
+    $("winnerOverlay").classList.add("hidden");
+    show("arcadeScreen");
+    renderArcadeMultiplayer();
+
+    if(arcadeState.winner && !document.body.dataset.arcadeWinnerShown){
+      document.body.dataset.arcadeWinnerShown="1";
+      endArcadeMultiplayer(arcadeState.winner);
+    }
+  }
+
+  if(data.type==="winner"){
+    endGame(data.name);
+  }
+}
+
+function playerNamesMap(){
+  const names={};
+  names[hostPeerId]=playerName||"Anfitrião";
+  clientConnections
+    .filter(c=>c.open&&c.playerName)
+    .forEach(c=>{names[c.peer]=c.playerName});
+  return names;
+}
+
+function startHostedArcadeGame(){
+  const names=playerNamesMap();
+  const keys=Object.keys(names);
+
+  gameOver=false;
+  arcadeRoundLocked=false;
+  document.body.dataset.arcadeWinnerShown="";
+  $("winnerOverlay").classList.add("hidden");
+
+  if(selectedGame==="treasure"){
+    const items=shuffle(gameNamesForCategory()).slice(0,10);
+    const marks={};
+    keys.forEach(k=>marks[k]=[]);
+    arcadeState={
+      game:selectedGame,
+      category,
+      items,
+      names,
+      marks,
+      winner:"",
+      locked:false
+    };
+  }else{
+    const items = selectedGame==="colors"
+      ? [
+          ["Vermelho","#ef4444"],["Azul","#3b82f6"],["Amarelo","#facc15"],
+          ["Verde","#22c55e"],["Laranja","#f97316"],["Roxo","#a855f7"],
+          ["Rosa","#ec4899"],["Branco","#f8fafc"],["Preto","#111827"],
+          ["Marrom","#92400e"]
+        ]
+      : shuffle(gameNamesForCategory());
+
+    const scores={};
+    keys.forEach(k=>scores[k]=0);
+
+    arcadeState={
+      game:selectedGame,
+      category,
+      items,
+      index:0,
+      scores,
+      names,
+      winner:"",
+      locked:false
+    };
+  }
+
+  broadcast({type:"arcadeStart",state:arcadeState});
+  show("arcadeScreen");
+  renderArcadeMultiplayer();
 }
 
 function startHostedGame(){
+  restartInProgress=false;
+
+  if(selectedGame!=="bingo"){
+    startHostedArcadeGame();
+    return;
+  }
+
   sharedItems=shuffle(banks[category]).slice(0,16);
   cards=shuffle(sharedItems,"host-"+hostPeerId);
-  selected=new Set();hasWon=false;gameOver=false;
-  progressMap={};progressMap[hostPeerId]={name:playerName,count:0};
-  clientConnections.filter(c=>c.open&&c.playerName).forEach(c=>progressMap[c.peer]={name:c.playerName,count:0});
+  selected=new Set();
+  hasWon=false;
+  gameOver=false;
+
+  progressMap={};
+  progressMap[hostPeerId]={name:playerName,count:0};
+  clientConnections
+    .filter(c=>c.open&&c.playerName)
+    .forEach(c=>progressMap[c.peer]={name:c.playerName,count:0});
+
   broadcast({type:"start",category,goal,items:sharedItems});
-  startGameScreen();broadcastProgress();
+  startGameScreen();
+  broadcastProgress();
 }
 function startSoloGame(){
   if(selectedGame!=="bingo"){
@@ -717,6 +1006,10 @@ function startSoloGame(){
     startArcadeGame();
     return;
   }
+
+  $("winnerTitle").textContent="BINGO!";
+  $("winnerMessage").textContent="Temos um vencedor!";
+  $("winnerCloseBtn").textContent="Ver cartela";
 
   sharedItems=shuffle(banks[category]).slice(0,16);
   cards=shuffle(sharedItems);selected=new Set();hasWon=false;gameOver=false;startGameScreen();
@@ -738,7 +1031,7 @@ function renderBoard(){
     btn.className="tile"+(selected.has(index)?" selected":"");
     btn.disabled=gameOver;
     btn.innerHTML=`
-      <span class="check"><i class="fa-solid fa-check"></i></span>
+      <span class="check"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
       <div class="icon-wrap tone-${tone%8}">
         <i class="fa-solid ${icon} item-icon" aria-hidden="true"></i>
         <span class="emoji-fallback" aria-hidden="true">${fallback}</span>
@@ -858,9 +1151,11 @@ $("hostBtn").addEventListener("click",()=>{mode="host";$("nameTitle").textConten
 $("joinBtn").addEventListener("click",()=>{mode="join";$("nameTitle").textContent="Entrar na partida";$("nameSub").textContent="Digite seu nome para entrar na sala.";show("nameScreen")});
 $("backName").addEventListener("click",()=>show("homeScreen"));
 $("backJoin").addEventListener("click",()=>show("homeScreen"));
+$("reconnectBtn").addEventListener("click",()=>{reconnectAttempts=0;if(lastRoomId)joinRoom(lastRoomId,true)});
 
 $("continueName").addEventListener("click",()=>{
   playerName=$("playerName").value.trim()||"Jogador";
+  try{localStorage.setItem("bdr.playerName",playerName)}catch(e){}
   if(mode==="join"){
     show("joinScreen");const r=new URL(location.href).searchParams.get("room");if(r)$("roomInput").value=r;
   }else{
@@ -870,10 +1165,14 @@ $("continueName").addEventListener("click",()=>{
 });
 
 document.querySelectorAll(".category").forEach(btn=>btn.addEventListener("click",()=>{
-  category=btn.dataset.category;document.querySelectorAll(".category").forEach(x=>x.classList.toggle("active",x===btn));
+  category=btn.dataset.category;
+  document.querySelectorAll(".category").forEach(x=>x.classList.toggle("active",x===btn));
+  try{localStorage.setItem("bdr.category",category)}catch(e){}
 }));
 document.querySelectorAll(".option").forEach(btn=>btn.addEventListener("click",()=>{
-  goal=btn.dataset.goal;document.querySelectorAll(".option").forEach(x=>x.classList.toggle("active",x===btn));
+  goal=btn.dataset.goal;
+  document.querySelectorAll(".option").forEach(x=>x.classList.toggle("active",x===btn));
+  try{localStorage.setItem("bdr.goal",goal)}catch(e){}
 }));
 
 $("confirmSetup").addEventListener("click",()=>{
@@ -888,7 +1187,7 @@ $("connectBtn").addEventListener("click",()=>{
   if(!room){$("joinError").classList.remove("hidden");$("joinError").textContent="Digite um código de sala válido.";return}
   joinRoom(room);
 });
-$("startGameBtn").addEventListener("click",startHostedGame);
+$("startGameBtn").addEventListener("click",()=>startHostedGame());
 
 (function autoJoin(){
   const room=new URL(location.href).searchParams.get("room");
@@ -938,7 +1237,8 @@ $("winnerHomeBtn").addEventListener("click",()=>{
   stopMusic();
   gameOver=false;hasWon=false;selected=new Set();
   if(peer){try{peer.destroy()}catch(e){}}
-  peer=null;hostConnection=null;clientConnections=[];progressMap={};
+  peer=null;hostConnection=null;clientConnections=[];progressMap={};arcadeState=null;
+  reconnectAttempts=0;clearTimeout(reconnectTimer);
   const u=new URL(location.href);u.search="";history.replaceState({}, "", u.pathname);
   show("homeScreen");
 });
@@ -1000,13 +1300,13 @@ $("scanQrBtn").addEventListener("click", async ()=>{
         }
 
         qrScanBusy = true;
-        $("roomCode").value = room;
+        $("roomInput").value = room;
         await stopQrScanner();
 
         // Pequena pausa para a interface fechar antes de conectar.
         setTimeout(()=>{
-          const joinBtn = $("joinBtn");
-          if(joinBtn) joinBtn.click();
+          const connectBtn = $("connectBtn");
+          if(connectBtn) connectBtn.click();
         }, 180);
       },
       ()=>{}
@@ -1020,73 +1320,98 @@ $("scanQrBtn").addEventListener("click", async ()=>{
 
 $("scannerCloseBtn").addEventListener("click", stopQrScanner);
 
-const CURRENT_VERSION = "2.1";
+const CURRENT_VERSION = "3.0";
 let autoUpdating = false;
 
+function isMatchActive(){
+  const activeIds=["lobbyScreen","gameScreen","arcadeScreen"];
+  return activeIds.some(id=>{
+    const el=$(id);
+    return el && !el.classList.contains("hidden");
+  }) && !gameOver;
+}
+
 async function forceLoadPublishedVersion(publishedVersion){
-  if(autoUpdating) return;
-  autoUpdating = true;
+  if(autoUpdating || isMatchActive()) return;
+  autoUpdating=true;
 
   try{
     if("caches" in window){
-      const keys = await caches.keys();
+      const keys=await caches.keys();
       await Promise.all(
         keys
-          .filter(k => k.startsWith("bingo-da-rua-"))
-          .map(k => caches.delete(k))
+          .filter(k=>k.startsWith("bingo-da-rua-"))
+          .map(k=>caches.delete(k))
       );
     }
 
     if("serviceWorker" in navigator){
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(async reg => {
-        try{ await reg.update(); }catch(e){}
-        try{ await reg.unregister(); }catch(e){}
-      }));
+      // Only the registration controlling THIS Bingo scope.
+      const reg=await navigator.serviceWorker.getRegistration("./");
+      if(reg){
+        try{await reg.update()}catch(e){}
+        try{await reg.unregister()}catch(e){}
+      }
     }
   }catch(e){}
 
-  const u = new URL(location.href);
-  u.searchParams.set("_v", publishedVersion || Date.now().toString());
-  u.searchParams.set("_reload", Date.now().toString());
+  const u=new URL(location.href);
+  u.searchParams.set("_v",publishedVersion||Date.now().toString());
   location.replace(u.toString());
 }
 
 async function checkForNewVersion(){
   try{
-    const response = await fetch(`./version.json?_=${Date.now()}`, {
-      cache: "no-store",
-      headers: {"Cache-Control":"no-cache"}
+    const response=await fetch(`./version.json?_=${Date.now()}`,{
+      cache:"no-store",
+      headers:{"Cache-Control":"no-cache"}
     });
+
+    // No connection means "could not check", NOT "there is another version".
     if(!response.ok) return;
 
-    const info = await response.json();
+    const info=await response.json();
 
-    if(info.version && info.version !== CURRENT_VERSION){
+    if(info.version && info.version!==CURRENT_VERSION){
+      pendingVersion=info.version;
+      updatePending=true;
       $("updateBox").classList.remove("hidden");
 
-      // When opened as an installed PWA, update automatically.
-      if(isStandalone()){
-        setTimeout(()=>forceLoadPublishedVersion(info.version), 350);
+      if(isMatchActive()){
+        $("forceUpdateBtn").textContent="🔄 Atualização disponível após a partida";
+        $("forceUpdateBtn").disabled=true;
+      }else{
+        $("forceUpdateBtn").textContent="🔄 Atualizar para a versão mais recente";
+        $("forceUpdateBtn").disabled=false;
+
+        // Installed app may update automatically, but never during a game/lobby.
+        if(isStandalone()){
+          setTimeout(()=>{
+            if(!isMatchActive() && updatePending){
+              forceLoadPublishedVersion(pendingVersion);
+            }
+          },500);
+        }
       }
     }else{
+      pendingVersion="";
+      updatePending=false;
       $("updateBox").classList.add("hidden");
+      $("forceUpdateBtn").disabled=false;
     }
   }catch(e){
-    $("updateBox").classList.add("hidden");
+    // Stay on the current version silently when offline.
   }
 }
 
-window.addEventListener("load", async ()=>{
+window.addEventListener("load",async()=>{
   if("serviceWorker" in navigator){
     try{
-      const reg = await navigator.serviceWorker.getRegistration();
+      const reg=await navigator.serviceWorker.getRegistration("./");
       if(reg) await reg.update();
     }catch(e){}
   }
-
   checkForNewVersion();
-  setTimeout(checkForNewVersion,2500);
 });
 
 document.addEventListener("visibilitychange",()=>{
@@ -1095,32 +1420,13 @@ document.addEventListener("visibilitychange",()=>{
   }
 });
 
-$("forceUpdateBtn").addEventListener("click", async ()=>{
+$("forceUpdateBtn").addEventListener("click",async()=>{
+  if(isMatchActive()) return;
+
   const btn=$("forceUpdateBtn");
   btn.disabled=true;
-  btn.textContent="⏳ Limpando cache e atualizando...";
-
-  try{
-    if("serviceWorker" in navigator){
-      const regs=await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r=>r.unregister()));
-    }
-
-    if("caches" in window){
-      const keys=await caches.keys();
-      await Promise.all(keys.map(k=>caches.delete(k)));
-    }
-
-    try{ sessionStorage.clear(); }catch(e){}
-
-    const u=new URL(location.href);
-    u.searchParams.set("_refresh",Date.now().toString());
-    location.replace(u.toString());
-  }catch(e){
-    btn.disabled=false;
-    btn.textContent="🔄 Tentar atualizar novamente";
-    alert("Não foi possível atualizar automaticamente. Tente novamente.");
-  }
+  btn.textContent="⏳ Atualizando...";
+  await forceLoadPublishedVersion(pendingVersion||Date.now().toString());
 });
 
 
@@ -1167,6 +1473,7 @@ function setSelectedGame(game){
   document.querySelectorAll(".game-mode-card").forEach(
     b=>b.classList.toggle("active",b.dataset.game===game)
   );
+  try{localStorage.setItem("bdr.selectedGame",selectedGame)}catch(e){}
 }
 
 function updateSetupForSelectedGame(){
@@ -1178,14 +1485,14 @@ function updateSetupForSelectedGame(){
   if(selectedGame==="bingo"){
     goalBox.classList.remove("hidden");
     hint.classList.add("hidden");
-    title.textContent="Configure a partida";
-    sub.textContent="Escolha o cenário e como alguém vence.";
+    title.textContent="Configure o Bingo";
+    sub.textContent="Escolha o cenário e a regra de vitória.";
     return;
   }
 
   goalBox.classList.add("hidden");
   hint.classList.remove("hidden");
-  title.textContent="Escolha o cenário";
+  title.textContent="Configure o jogo";
 
   const descriptions={
     race:"👀 Quem acha primeiro? — encontre os objetos sorteados e marque pontos.",
@@ -1201,12 +1508,284 @@ document.querySelectorAll(".game-mode-card").forEach(btn=>{
   btn.addEventListener("click",()=>setSelectedGame(btn.dataset.game));
 });
 
+function loadPreferences(){
+  try{
+    const savedName=localStorage.getItem("bdr.playerName");
+    const savedCategory=localStorage.getItem("bdr.category");
+    const savedGoal=localStorage.getItem("bdr.goal");
+    const savedGame=localStorage.getItem("bdr.selectedGame");
+
+    if(savedName){
+      $("playerName").value=savedName;
+      playerName=savedName;
+    }
+
+    if(["Rua","Estrada","Parque"].includes(savedCategory)){
+      category=savedCategory;
+      document.querySelectorAll(".category").forEach(
+        b=>b.classList.toggle("active",b.dataset.category===category)
+      );
+    }
+
+    if(["line","full"].includes(savedGoal)){
+      goal=savedGoal;
+      document.querySelectorAll(".option").forEach(
+        b=>b.classList.toggle("active",b.dataset.goal===goal)
+      );
+    }
+
+    if(["bingo","race","treasure","colors"].includes(savedGame)){
+      selectedGame=savedGame;
+      document.querySelectorAll(".game-mode-card").forEach(
+        b=>b.classList.toggle("active",b.dataset.game===selectedGame)
+      );
+    }
+  }catch(e){}
+}
+
+loadPreferences();
+
 function vibrate(ms=40){try{if(navigator.vibrate)navigator.vibrate(ms)}catch(e){}}
 
+
+function myArcadeKey(){
+  if(mode==="host") return hostPeerId;
+  if(mode==="join") return (peer&&peer.id)||playerSeed;
+  return "solo";
+}
+
+function arcadeCountFor(key){
+  if(!arcadeState) return 0;
+  if(arcadeState.game==="treasure"){
+    return (arcadeState.marks && arcadeState.marks[key] || []).length;
+  }
+  return Number(arcadeState.scores && arcadeState.scores[key] || 0);
+}
+
+function broadcastArcadeState(){
+  if(mode!=="host" || !arcadeState) return;
+  broadcast({type:"arcadeState",state:arcadeState});
+  renderArcadeMultiplayer();
+}
+
+function finishHostedArcade(winnerKey){
+  if(gameOver || !arcadeState) return;
+
+  gameOver=true;
+  arcadeState.winner=(arcadeState.names&&arcadeState.names[winnerKey])||"Jogador";
+  arcadeState.locked=true;
+
+  broadcast({type:"arcadeState",state:arcadeState});
+  renderArcadeMultiplayer();
+  endArcadeMultiplayer(arcadeState.winner);
+}
+
+function processArcadeFound(playerKey){
+  if(
+    mode!=="host" ||
+    !arcadeState ||
+    gameOver ||
+    arcadeState.locked ||
+    arcadeState.game==="treasure"
+  ) return;
+
+  if(!(playerKey in arcadeState.scores)) arcadeState.scores[playerKey]=0;
+
+  arcadeState.locked=true;
+  arcadeState.scores[playerKey]+=1;
+
+  const target=arcadeState.game==="colors"?8:10;
+
+  if(arcadeState.scores[playerKey]>=target){
+    finishHostedArcade(playerKey);
+    return;
+  }
+
+  broadcastArcadeState();
+
+  setTimeout(()=>{
+    if(gameOver || !arcadeState) return;
+    arcadeState.index=(arcadeState.index+1)%arcadeState.items.length;
+    arcadeState.locked=false;
+    broadcastArcadeState();
+  },650);
+}
+
+function processTreasureToggle(playerKey,index){
+  if(
+    mode!=="host" ||
+    !arcadeState ||
+    arcadeState.game!=="treasure" ||
+    gameOver ||
+    !Number.isInteger(index) ||
+    index<0 ||
+    index>=arcadeState.items.length
+  ) return;
+
+  const current=new Set(arcadeState.marks[playerKey]||[]);
+  if(current.has(index)) current.delete(index);
+  else current.add(index);
+
+  arcadeState.marks[playerKey]=Array.from(current).sort((a,b)=>a-b);
+
+  if(current.size>=arcadeState.items.length){
+    finishHostedArcade(playerKey);
+    return;
+  }
+
+  broadcastArcadeState();
+}
+
+function sendArcadeFound(){
+  if(gameOver || !arcadeState || arcadeState.locked) return;
+
+  if(mode==="host"){
+    processArcadeFound(hostPeerId);
+  }else if(mode==="join" && hostConnection && hostConnection.open){
+    hostConnection.send({type:"arcadeFound"});
+  }
+}
+
+function sendTreasureToggle(index){
+  if(gameOver || !arcadeState) return;
+
+  if(mode==="host"){
+    processTreasureToggle(hostPeerId,index);
+  }else if(mode==="join" && hostConnection && hostConnection.open){
+    hostConnection.send({type:"arcadeTreasureToggle",index});
+  }
+}
+
+function renderArcadeScorePills(){
+  const score=$("arcadeScore");
+
+  if(!arcadeState){
+    score.innerHTML="";
+    return;
+  }
+
+  const names=arcadeState.names||{};
+
+  score.innerHTML=Object.keys(names).map(key=>{
+    const count=arcadeCountFor(key);
+    const max=arcadeState.game==="treasure"
+      ? arcadeState.items.length
+      : (arcadeState.game==="colors"?8:10);
+
+    return `<span class="score-pill">${escapeHtml(names[key])}: ${count}/${max}</span>`;
+  }).join("");
+}
+
+function renderArcadeMultiplayer(){
+  if(!arcadeState) return;
+
+  const stage=$("arcadeStage");
+  renderArcadeScorePills();
+
+  if(arcadeState.game==="race"){
+    $("arcadeTitle").textContent="👀 Quem acha primeiro?";
+    $("arcadeSubtitle").textContent="O primeiro a 10 pontos vence";
+
+    const item=arcadeState.items[arcadeState.index%arcadeState.items.length];
+    stage.innerHTML=`<div class="challenge-object ${arcadeState.locked?"round-lock":""}">
+      <div class="big">${item[1]}</div>
+      <h2>Encontre ${escapeHtml(item[0])}</h2>
+      <p>Todos receberam o mesmo desafio.</p>
+      <button id="arcadeFound" class="found-btn" type="button" ${arcadeState.locked||gameOver?"disabled":""}>ACHEI!</button>
+    </div>`;
+
+    const b=$("arcadeFound");
+    if(b) b.onclick=()=>{vibrate();sendArcadeFound()};
+    return;
+  }
+
+  if(arcadeState.game==="colors"){
+    $("arcadeTitle").textContent="🎨 Caça às Cores";
+    $("arcadeSubtitle").textContent="O primeiro a 8 pontos vence";
+
+    const c=arcadeState.items[arcadeState.index%arcadeState.items.length];
+    stage.innerHTML=`<div class="challenge-object ${arcadeState.locked?"round-lock":""}">
+      <div class="color-target" style="background:${c[1]}"></div>
+      <h2>Encontre algo ${escapeHtml(c[0])}</h2>
+      <p>Todos procuram a mesma cor.</p>
+      <button id="arcadeFound" class="found-btn" type="button" ${arcadeState.locked||gameOver?"disabled":""}>ACHEI!</button>
+    </div>`;
+
+    const b=$("arcadeFound");
+    if(b) b.onclick=()=>{vibrate();sendArcadeFound()};
+    return;
+  }
+
+  if(arcadeState.game==="treasure"){
+    $("arcadeTitle").textContent="🗺️ Caça ao Tesouro";
+    $("arcadeSubtitle").textContent="O primeiro a encontrar os 10 itens vence";
+
+    const me=myArcadeKey();
+    const done=new Set(arcadeState.marks&&arcadeState.marks[me]||[]);
+
+    stage.innerHTML=`<div class="treasure-list">${
+      arcadeState.items.map((it,i)=>`
+        <button class="treasure-item ${done.has(i)?"done":""}" data-i="${i}" type="button" ${gameOver?"disabled":""}>
+          <span class="e">${it[1]}</span><span>${escapeHtml(it[0])}</span>
+        </button>`
+      ).join("")
+    }</div>`;
+
+    stage.querySelectorAll(".treasure-item").forEach(btn=>{
+      btn.onclick=()=>{
+        vibrate();
+        sendTreasureToggle(Number(btn.dataset.i));
+      };
+    });
+  }
+}
+
+function endArcadeMultiplayer(name){
+  if(document.body.dataset.arcadeWinnerShown==="1" && mode!=="host") return;
+  document.body.dataset.arcadeWinnerShown="1";
+  gameOver=true;
+
+  if(musicOn) stopMusic();
+  playVictoryJingle();
+
+  const safeName=name||"Jogador";
+  $("winnerTitle").textContent =
+    safeName===playerName ? "VOCÊ VENCEU!" : `${safeName} VENCEU!`;
+
+  $("winnerMessage").textContent =
+    safeName===playerName
+      ? "Parabéns! Você completou o objetivo primeiro."
+      : `${safeName} completou o objetivo primeiro.`;
+
+  $("winnerCloseBtn").textContent="Ver jogo";
+  $("winnerRestartBtn").disabled=false;
+  $("winnerRestartBtn").textContent="🔄 Jogar novamente";
+  $("winnerOverlay").classList.remove("hidden");
+}
+
 function arcadeWin(label){
+  gameOver=true;
   vibrate([80,60,120]);
-  if(typeof playVictoryJingle==="function") playVictoryJingle();
-  $("winnerName").textContent = label || "VOCÊ VENCEU!";
+
+  if(typeof stopMusic==="function" && musicOn){
+    stopMusic();
+  }
+  if(typeof playVictoryJingle==="function"){
+    playVictoryJingle();
+  }
+
+  $("winnerTitle").textContent = label || "VOCÊ VENCEU!";
+
+  const messages={
+    race:"Você chegou a 10 pontos!",
+    treasure:"Você encontrou todos os itens do tesouro!",
+    colors:"Você completou todos os desafios de cores!"
+  };
+  $("winnerMessage").textContent = messages[selectedGame] || "Desafio concluído!";
+
+  const closeBtn=$("winnerCloseBtn");
+  if(closeBtn) closeBtn.textContent="Ver jogo";
+
   $("winnerOverlay").classList.remove("hidden");
 }
 
@@ -1221,6 +1800,11 @@ function startArcadeGame(){
 }
 
 function renderArcade(){
+  if(mode!=="solo" && arcadeState){
+    renderArcadeMultiplayer();
+    return;
+  }
+
   const stage=$("arcadeStage");
   const score=$("arcadeScore");
   score.innerHTML="";
@@ -1234,7 +1818,7 @@ function renderArcade(){
       <div class="big">${item[1]}</div><h2>Encontre ${escapeHtml(item[0])}</h2>
       <p>Achou? Toque no botão.</p>
       <button id="arcadeFound" class="found-btn" type="button">ACHEI! +1</button>
-      <div class="tiny-note">No multiplayer, todos recebem o mesmo desafio.</div>
+      <div class="tiny-note">No multiplayer, o anfitrião sincroniza o mesmo desafio para todos.</div>
     </div>`;
     $("arcadeFound").onclick=()=>{
       vibrate();arcadePoints++;

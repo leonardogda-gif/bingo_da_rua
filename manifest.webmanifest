@@ -1,10 +1,10 @@
 {
-  "id": "./",
+  "id": "/bingo_da_rua/",
   "name": "Bingo da Rua",
   "short_name": "Bingo Rua",
   "description": "Jogo de bingo visual para passageiros encontrarem objetos durante passeios.",
-  "start_url": "./?source=pwa",
-  "scope": "./",
+  "start_url": "/bingo_da_rua/?source=pwa",
+  "scope": "/bingo_da_rua/",
   "display": "standalone",
   "display_override": [
     "standalone"
