@@ -4,265 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2563eb">
-  <title>Bingo da Rua V1.14</title>
+  <title>Bingo da Rua V1.16</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js">
-
-$("winnerRestartBtn").addEventListener("click",()=>{
-  const btn=$("winnerRestartBtn");
-
-  if(mode==="solo"){
-    startSoloGame();
-    return;
-  }
-
-  if(mode==="host"){
-    startHostedGame();
-    return;
-  }
-
-  if(mode==="join" && hostConnection && hostConnection.open){
-    btn.disabled=true;
-    btn.textContent="⏳ Reiniciando...";
-    hostConnection.send({type:"restartRequest",name:playerName});
-    setTimeout(()=>{
-      btn.disabled=false;
-      btn.textContent="🔄 Jogar novamente";
-    },2500);
-    return;
-  }
-
-  btn.textContent="Sem conexão com a sala";
-  setTimeout(()=>btn.textContent="🔄 Jogar novamente",1800);
-});
-
-$("winnerCloseBtn").addEventListener("click",()=>$("winnerOverlay").classList.add("hidden"));
-$("winnerHomeBtn").addEventListener("click",()=>{
-  $("winnerOverlay").classList.add("hidden");
-  stopMusic();
-  gameOver=false;hasWon=false;selected=new Set();
-  if(peer){try{peer.destroy()}catch(e){}}
-  peer=null;hostConnection=null;clientConnections=[];progressMap={};
-  const u=new URL(location.href);u.search="";history.replaceState({}, "", u.pathname);
-  show("homeScreen");
-});
-
-
-let deferredInstallPrompt = null;
-
-function isStandalone(){
-  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-}
-
-function isIOS(){
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
-}
-
-function isSafariIOS(){
-  return isIOS() && /safari/i.test(navigator.userAgent) && !/crios|fxios|edgios/i.test(navigator.userAgent);
-}
-
-function updateInstallUI(){
-  // A true installed PWA opens in standalone mode, without the browser address bar.
-
-  const banner=$("installBanner");
-  if(isStandalone()){
-    banner.classList.add("hidden");
-    return;
-  }
-
-  if(deferredInstallPrompt){
-    $("installText").textContent="Instale para abrir direto pela tela inicial.";
-    $("installBtn").textContent="📲 Instalar";
-    banner.classList.remove("hidden");
-    return;
-  }
-
-  if(isSafariIOS()){
-    $("installText").textContent="No iPhone, adicione o jogo à Tela de Início.";
-    $("installBtn").textContent="Ver como instalar";
-    banner.classList.remove("hidden");
-    return;
-  }
-
-  banner.classList.add("hidden");
-}
-
-window.addEventListener("beforeinstallprompt", event=>{
-  event.preventDefault();
-  deferredInstallPrompt=event;
-  updateInstallUI();
-});
-
-window.addEventListener("appinstalled", ()=>{
-  deferredInstallPrompt=null;
-  $("installBanner").classList.add("hidden");
-});
-
-$("installBtn").addEventListener("click", async ()=>{
-  if(deferredInstallPrompt){
-    deferredInstallPrompt.prompt();
-    try{
-      await deferredInstallPrompt.userChoice;
-    }catch(e){}
-    deferredInstallPrompt=null;
-    updateInstallUI();
-    return;
-  }
-
-  if(isSafariIOS()){
-    $("iosHelp").classList.remove("hidden");
-  }
-});
-
-$("iosCloseBtn").addEventListener("click",()=>$("iosHelp").classList.add("hidden"));
-
-window.addEventListener("load",updateInstallUI);
-
-
-
-const CURRENT_VERSION = "1.14";
-
-async function checkForNewVersion(){
-  try{
-    const response=await fetch(`./version.json?_=${Date.now()}`,{cache:"no-store"});
-    if(!response.ok)return;
-    const info=await response.json();
-    $("updateBox").classList.toggle("hidden", !info.version || info.version===CURRENT_VERSION);
-  }catch(e){
-    $("updateBox").classList.add("hidden");
-  }
-}
-window.addEventListener("load",()=>{checkForNewVersion();setTimeout(checkForNewVersion,3000);});
-
-$("forceUpdateBtn").addEventListener("click", async ()=>{
-  const btn=$("forceUpdateBtn");
-  btn.disabled=true;
-  btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Limpando cache e atualizando...';
-
-  try{
-    if("serviceWorker" in navigator){
-      const regs=await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r=>r.unregister()));
-    }
-
-    if("caches" in window){
-      const keys=await caches.keys();
-      await Promise.all(keys.map(k=>caches.delete(k)));
-    }
-
-    // Remove only app-local temporary state. Do not touch unrelated site data.
-    try{ sessionStorage.clear(); }catch(e){}
-
-    const u=new URL(location.href);
-    u.searchParams.set("_refresh",Date.now().toString());
-    location.replace(u.toString());
-  }catch(e){
-    btn.disabled=false;
-    btn.innerHTML='<i class="fa-solid fa-arrows-rotate"></i> Tentar atualizar novamente';
-    alert("Não foi possível limpar o cache automaticamente. Tente novamente.");
-  }
-});
-
-if("serviceWorker" in navigator){
-  window.addEventListener("load",()=>{
-    navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
-  });
-}
-
-</script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">
-$("winnerCloseBtn").addEventListener("click",()=>$("winnerOverlay").classList.add("hidden"));
-$("winnerHomeBtn").addEventListener("click",()=>{
-  $("winnerOverlay").classList.add("hidden");
-  stopMusic();
-  gameOver=false;hasWon=false;selected=new Set();
-  if(peer){try{peer.destroy()}catch(e){}}
-  peer=null;hostConnection=null;clientConnections=[];progressMap={};
-  const u=new URL(location.href);u.search="";history.replaceState({}, "", u.pathname);
-  show("homeScreen");
-});
-
-
-let deferredInstallPrompt = null;
-
-function isStandalone(){
-  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-}
-
-function isIOS(){
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
-}
-
-function isSafariIOS(){
-  return isIOS() && /safari/i.test(navigator.userAgent) && !/crios|fxios|edgios/i.test(navigator.userAgent);
-}
-
-function updateInstallUI(){
-  // A true installed PWA opens in standalone mode, without the browser address bar.
-
-  const banner=$("installBanner");
-  if(isStandalone()){
-    banner.classList.add("hidden");
-    return;
-  }
-
-  if(deferredInstallPrompt){
-    $("installText").textContent="Instale para abrir direto pela tela inicial.";
-    $("installBtn").textContent="📲 Instalar";
-    banner.classList.remove("hidden");
-    return;
-  }
-
-  if(isSafariIOS()){
-    $("installText").textContent="No iPhone, adicione o jogo à Tela de Início.";
-    $("installBtn").textContent="Ver como instalar";
-    banner.classList.remove("hidden");
-    return;
-  }
-
-  banner.classList.add("hidden");
-}
-
-window.addEventListener("beforeinstallprompt", event=>{
-  event.preventDefault();
-  deferredInstallPrompt=event;
-  updateInstallUI();
-});
-
-window.addEventListener("appinstalled", ()=>{
-  deferredInstallPrompt=null;
-  $("installBanner").classList.add("hidden");
-});
-
-$("installBtn").addEventListener("click", async ()=>{
-  if(deferredInstallPrompt){
-    deferredInstallPrompt.prompt();
-    try{
-      await deferredInstallPrompt.userChoice;
-    }catch(e){}
-    deferredInstallPrompt=null;
-    updateInstallUI();
-    return;
-  }
-
-  if(isSafariIOS()){
-    $("iosHelp").classList.remove("hidden");
-  }
-});
-
-$("iosCloseBtn").addEventListener("click",()=>$("iosHelp").classList.add("hidden"));
-
-window.addEventListener("load",updateInstallUI);
-
-if("serviceWorker" in navigator){
-  window.addEventListener("load",()=>{
-    navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
-  });
-}
-
-</script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <style>
     :root{
@@ -383,6 +130,28 @@ if("serviceWorker" in navigator){
       padding:0 12px;background:#fff;color:#475569;font-weight:850;cursor:pointer
     }
     .update-btn:disabled{opacity:.65;cursor:wait}
+
+
+    .scan-btn{
+      width:100%;border:0;border-radius:16px;min-height:50px;padding:0 16px;
+      background:#0f172a;color:#fff;font-weight:900;cursor:pointer;margin-top:10px
+    }
+    .scanner-overlay{
+      position:fixed;inset:0;z-index:12000;background:rgba(15,23,42,.92);
+      display:grid;place-items:center;padding:18px
+    }
+    .scanner-card{
+      width:min(480px,100%);background:#fff;border-radius:24px;padding:18px;
+      box-shadow:0 22px 60px rgba(0,0,0,.35)
+    }
+    .scanner-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+    .scanner-head h3{margin:0;font-size:1.05rem}
+    .scanner-close{
+      border:0;width:40px;height:40px;border-radius:12px;background:#f1f5f9;
+      font-size:1.2rem;cursor:pointer
+    }
+    #qrReader{width:100%;overflow:hidden;border-radius:16px;background:#000}
+    .scanner-help{margin:10px 0 0;color:#64748b;font-size:.82rem;line-height:1.35;text-align:center}
 
     .install-banner{
       display:flex;align-items:center;justify-content:space-between;gap:12px;
@@ -576,6 +345,7 @@ if("serviceWorker" in navigator){
     <h2 class="screen-title">Entrar na partida</h2>
     <p class="screen-sub">Se você abriu pelo QR Code, a sala já estará preenchida.</p>
     <input id="roomInput" class="field" placeholder="Código da sala">
+      <button id="scanQrBtn" class="scan-btn" type="button">📷 Ler QR Code</button>
     <div class="row" style="margin-top:12px">
       <button id="connectBtn" class="btn btn-primary" type="button">Entrar</button>
       <button id="backJoin" class="btn btn-secondary" type="button">Voltar</button>
@@ -649,6 +419,18 @@ if("serviceWorker" in navigator){
   </div>
 
 
+
+  <div id="scannerOverlay" class="scanner-overlay hidden">
+    <div class="scanner-card">
+      <div class="scanner-head">
+        <h3>📷 Ler QR Code da partida</h3>
+        <button id="scannerCloseBtn" class="scanner-close" type="button" aria-label="Fechar">✕</button>
+      </div>
+      <div id="qrReader"></div>
+      <p class="scanner-help">Aponte a câmera para o QR Code mostrado no celular do anfitrião.</p>
+    </div>
+  </div>
+
   <div id="iosHelp" class="ios-help hidden">
     <div class="ios-card">
       <div style="font-size:42px">📲</div>
@@ -663,7 +445,7 @@ if("serviceWorker" in navigator){
     </div>
   </div>
 
-  <div class="footer">Bingo da Rua • V1.14 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
+  <div class="footer">Bingo da Rua • V1.16 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
 </main>
 
 <script>
@@ -1022,6 +804,38 @@ $("startGameBtn").addEventListener("click",startHostedGame);
   if(room){mode="join";$("nameTitle").textContent="Você foi convidado!";$("nameSub").textContent="Digite seu nome para entrar nessa partida.";$("roomInput").value=room;show("nameScreen")}
 })();
 
+
+$("winnerRestartBtn").addEventListener("click",()=>{
+  const btn=$("winnerRestartBtn");
+
+  if(mode==="solo"){
+    startSoloGame();
+    return;
+  }
+
+  if(mode==="host"){
+    startHostedGame();
+    return;
+  }
+
+  if(mode==="join"){
+    if(hostConnection && hostConnection.open){
+      btn.disabled=true;
+      btn.textContent="⏳ Solicitando nova partida...";
+      hostConnection.send({type:"restartRequest",name:playerName});
+      setTimeout(()=>{
+        if(gameOver){
+          btn.disabled=false;
+          btn.textContent="🔄 Jogar novamente";
+        }
+      },2500);
+    }else{
+      btn.textContent="⚠️ Sala desconectada";
+      setTimeout(()=>btn.textContent="🔄 Jogar novamente",1800);
+    }
+  }
+});
+
 $("winnerCloseBtn").addEventListener("click",()=>$("winnerOverlay").classList.add("hidden"));
 $("winnerHomeBtn").addEventListener("click",()=>{
   $("winnerOverlay").classList.add("hidden");
@@ -1033,6 +847,127 @@ $("winnerHomeBtn").addEventListener("click",()=>{
   show("homeScreen");
 });
 
+
+
+
+let html5QrScanner = null;
+let qrScanBusy = false;
+
+function extractRoomFromQr(text){
+  try{
+    const url = new URL(text);
+    const room = url.searchParams.get("room");
+    if(room) return room.trim();
+  }catch(e){}
+
+  const raw = String(text || "").trim();
+  if(raw.startsWith("bdr-")) return raw;
+  return "";
+}
+
+async function stopQrScanner(){
+  if(html5QrScanner){
+    try{
+      const state = html5QrScanner.getState ? html5QrScanner.getState() : null;
+      if(state === 2 || state === 3) await html5QrScanner.stop();
+    }catch(e){}
+    try{ html5QrScanner.clear(); }catch(e){}
+    html5QrScanner = null;
+  }
+  qrScanBusy = false;
+  $("scannerOverlay").classList.add("hidden");
+}
+
+$("scanQrBtn").addEventListener("click", async ()=>{
+  $("scannerOverlay").classList.remove("hidden");
+
+  if(typeof Html5Qrcode === "undefined"){
+    alert("O leitor de QR Code não carregou. Verifique sua conexão com a internet.");
+    $("scannerOverlay").classList.add("hidden");
+    return;
+  }
+
+  try{
+    html5QrScanner = new Html5Qrcode("qrReader");
+    qrScanBusy = false;
+
+    await html5QrScanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1.0 },
+      async decodedText => {
+        if(qrScanBusy) return;
+        const room = extractRoomFromQr(decodedText);
+
+        if(!room){
+          qrScanBusy = false;
+          return;
+        }
+
+        qrScanBusy = true;
+        $("roomCode").value = room;
+        await stopQrScanner();
+
+        // Pequena pausa para a interface fechar antes de conectar.
+        setTimeout(()=>{
+          const joinBtn = $("joinBtn");
+          if(joinBtn) joinBtn.click();
+        }, 180);
+      },
+      ()=>{}
+    );
+  }catch(err){
+    $("scannerOverlay").classList.add("hidden");
+    html5QrScanner = null;
+    alert("Não foi possível abrir a câmera. No celular, permita o acesso à câmera e tente novamente.");
+  }
+});
+
+$("scannerCloseBtn").addEventListener("click", stopQrScanner);
+
+const CURRENT_VERSION = "1.16";
+
+async function checkForNewVersion(){
+  try{
+    const response=await fetch(`./version.json?_=${Date.now()}`,{cache:"no-store"});
+    if(!response.ok)return;
+    const info=await response.json();
+    $("updateBox").classList.toggle("hidden", !info.version || info.version===CURRENT_VERSION);
+  }catch(e){
+    $("updateBox").classList.add("hidden");
+  }
+}
+window.addEventListener("load",()=>{
+  checkForNewVersion();
+  setTimeout(checkForNewVersion,3000);
+});
+
+$("forceUpdateBtn").addEventListener("click", async ()=>{
+  const btn=$("forceUpdateBtn");
+  btn.disabled=true;
+  btn.textContent="⏳ Limpando cache e atualizando...";
+
+  try{
+    if("serviceWorker" in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+
+    if("caches" in window){
+      const keys=await caches.keys();
+      await Promise.all(keys.map(k=>caches.delete(k)));
+    }
+
+    try{ sessionStorage.clear(); }catch(e){}
+
+    const u=new URL(location.href);
+    u.searchParams.set("_refresh",Date.now().toString());
+    location.replace(u.toString());
+  }catch(e){
+    btn.disabled=false;
+    btn.textContent="🔄 Tentar atualizar novamente";
+    alert("Não foi possível atualizar automaticamente. Tente novamente.");
+  }
+});
 
 let deferredInstallPrompt = null;
 
