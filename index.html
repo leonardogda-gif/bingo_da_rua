@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#2563eb">
-  <title>Bingo da Rua V3.0</title>
+  <title>Bingo da Rua V3.2</title>
 
   <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
   <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -309,7 +309,28 @@
     }
     .round-lock{opacity:.6;pointer-events:none}
 
-  </style>
+  
+    .tile.confirming{border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.18)}
+    .tile.confirming .tile-name{background:#fff7ed;color:#9a3412}
+    .sync-state{min-height:20px;margin-top:5px;font-size:.78rem;font-weight:850;color:#64748b}
+    .sync-state.ok{color:#15803d}.sync-state.wait{color:#b45309}
+
+  
+    .version-badge{
+      position:fixed;right:10px;bottom:10px;z-index:1500;
+      background:rgba(15,23,42,.92);color:white;border-radius:999px;
+      padding:6px 10px;font-size:.72rem;font-weight:900;
+      box-shadow:0 4px 14px rgba(15,23,42,.22);
+      pointer-events:none
+    }
+    .wake-state{
+      display:inline-flex;align-items:center;gap:5px;
+      font-size:.72rem;font-weight:850;color:#166534;
+      background:#f0fdf4;border:1px solid #bbf7d0;
+      border-radius:999px;padding:5px 8px;margin-top:6px
+    }
+
+</style>
 
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
@@ -327,7 +348,7 @@
   <header class="hero">
     <div class="logo"><i class="fa-solid fa-car-side"></i></div>
     <div>
-      <h1>Bingo da Rua</h1>
+      <h1>Bingo da Rua</h1><div style="font-size:.76rem;font-weight:900;color:#64748b">Versão instalada: <strong>3.2</strong></div>
       <p class="subtitle">Ícones coloridos, dois tipos de vitória e multiplayer com progresso ao vivo.</p>
     </div>
   </header>
@@ -467,6 +488,7 @@
     </div>
     <div id="arcadeScore" class="score-strip"></div>
     <div id="arcadeStage" class="mode-stage"></div>
+    <div id="arcadeWakeState" class="wake-state hidden">🔆 Tela mantida ativa</div>
   </section>
 
 <section id="gameScreen" class="panel hidden">
@@ -486,6 +508,8 @@
       <div>
         <div id="board" class="board"></div>
         <div id="status" class="status">Toque em um item quando você encontrá-lo.</div>
+        <div id="syncState" class="sync-state" aria-live="polite"></div>
+        <div id="wakeState" class="wake-state hidden">🔆 Tela mantida ativa</div>
         <div id="winnerToast" class="toast hidden"></div>
       </div>
 
@@ -540,7 +564,7 @@
     </div>
   </div>
 
-  <div class="footer">Bingo da Rua • V3.0 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
+  <div class="footer">Bingo da Rua • V3.2 PWA • Ícones consistentes e leves para funcionar bem no celular.</div>
 </main>
 
 <script>
@@ -607,6 +631,13 @@ let arcadeRoundLocked=false;
 
 let pendingVersion="";
 let updatePending=false;
+let wakeLock=null;
+let confirmIndex=null;
+let confirmTimer=null;
+let bingoRevision=0;
+let lastKnownState=null;
+let treasureConfirmIndex=null;
+let treasureConfirmTimer=null;
 
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function randomId(){return "bdr-"+Math.random().toString(36).slice(2,7)+"-"+Date.now().toString(36).slice(-4)}
@@ -664,6 +695,37 @@ function getJoinUrl(id){
   const u=new URL(location.href);u.search="";u.hash="";u.searchParams.set("room",id);return u.toString();
 }
 
+
+function updateWakeUI(active){
+  const a=$("wakeState"), b=$("arcadeWakeState");
+  if(a) a.classList.toggle("hidden",!active);
+  if(b) b.classList.toggle("hidden",!active);
+}
+async function requestGameWakeLock(){
+  if(!("wakeLock" in navigator) || document.visibilityState!=="visible"){
+    updateWakeUI(false);
+    return;
+  }
+  try{
+    if(!wakeLock) wakeLock=await navigator.wakeLock.request("screen");
+    updateWakeUI(Boolean(wakeLock));
+    if(wakeLock){
+      wakeLock.addEventListener("release",()=>updateWakeUI(false),{once:true});
+    }
+  }catch(e){ updateWakeUI(false); }
+}
+async function releaseGameWakeLock(){
+  if(wakeLock){ try{await wakeLock.release()}catch(e){} wakeLock=null; }
+  updateWakeUI(false);
+}
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible"){
+    const active=["gameScreen","arcadeScreen"].some(id=>!$(id).classList.contains("hidden"));
+    if(active&&!gameOver) requestGameWakeLock();
+    if(mode==="join"&&hostConnection&&hostConnection.open) hostConnection.send({type:"stateRequest"});
+  }
+});
+
 function multiplayerAvailable(){
   return navigator.onLine && typeof Peer !== "undefined";
 }
@@ -711,8 +773,19 @@ function setupHostConnection(conn){
       broadcastProgress();
     }
 
+    if(data.type==="stateRequest") sendFullState(conn);
+
+    if(data.type==="bingoMark" && selectedGame==="bingo" && !gameOver){
+      const count=Math.max(0,Math.min(16,Number(data.count)||0));
+      progressMap[conn.peer]={name:conn.playerName||"Jogador",count};
+      bingoRevision++;
+      broadcastProgress();
+      conn.send({type:"markAck",revision:bingoRevision,count});
+    }
+
     if(data.type==="bingo" && selectedGame==="bingo" && !gameOver){
       gameOver=true;
+      lastKnownState={winner:data.name};
       broadcast({type:"winner",name:data.name});
       endGame(data.name);
     }
@@ -755,6 +828,16 @@ function renderHostLobby(){
   }
   progressMap[hostPeerId]={name:playerName,count:0};broadcastPlayers();
 }
+function buildFullState(){
+  if(selectedGame==="bingo"){
+    return {type:"fullState",game:"bingo",category,goal,items:sharedItems,
+      finished:gameOver,winner:lastKnownState&&lastKnownState.winner||"",
+      revision:bingoRevision,progress:Object.values(progressMap)};
+  }
+  return {type:"fullState",game:selectedGame,state:arcadeState,finished:gameOver,
+    winner:arcadeState&&arcadeState.winner||""};
+}
+function sendFullState(conn){ if(conn&&conn.open) conn.send(buildFullState()); }
 function broadcast(data){clientConnections.forEach(c=>{if(c.open)c.send(data)})}
 function currentPlayers(){
   return [{name:playerName,host:true}].concat(clientConnections.filter(c=>c.open&&c.playerName).map(c=>({name:c.playerName,host:false})));
@@ -844,6 +927,7 @@ function joinRoom(roomId,isReconnect=false){
         name:playerName,
         seed:playerSeed
       });
+      hostConnection.send({type:"stateRequest"});
 
       show("lobbyScreen");
       $("hostShareBox").classList.add("hidden");
@@ -880,6 +964,28 @@ function handleClientData(data){
 
   if(data.type==="progressAll" && selectedGame==="bingo"){
     renderScores(data.rows||[]);
+  }
+
+  if(data.type==="markAck"){
+    const s=$("syncState");
+    if(s){s.textContent="✓ Registrado na partida";s.className="sync-state ok";
+      setTimeout(()=>{if(s.textContent.includes("Registrado"))s.textContent=""},1200);}
+  }
+  if(data.type==="fullState"){
+    if(data.game==="bingo"){
+      selectedGame="bingo";category=data.category||category;goal=data.goal||goal;
+      if(Array.isArray(data.items)&&data.items.length){
+        sharedItems=data.items;
+        if(!cards.length) cards=shuffle(sharedItems,playerSeed||playerName);
+      }
+      if(Array.isArray(data.progress)) renderScores(data.progress);
+      if(data.finished&&data.winner){gameOver=true;endGame(data.winner);}
+      else if(!$("gameScreen").classList.contains("hidden")){gameOver=false;renderBoard();updateGame();}
+    }else if(data.state){
+      arcadeState=data.state;selectedGame=data.game;category=arcadeState.category||category;
+      show("arcadeScreen");renderArcadeMultiplayer();
+      if(data.finished&&data.winner) endArcadeMultiplayer(data.winner);
+    }
   }
 
   if(data.type==="start"){
@@ -924,6 +1030,9 @@ function playerNamesMap(){
 }
 
 function startHostedArcadeGame(){
+  requestGameWakeLock();
+  treasureConfirmIndex=null;
+  clearTimeout(treasureConfirmTimer);
   const names=playerNamesMap();
   const keys=Object.keys(names);
 
@@ -977,6 +1086,8 @@ function startHostedArcadeGame(){
 
 function startHostedGame(){
   restartInProgress=false;
+  lastKnownState=null;
+  bingoRevision=0;
 
   if(selectedGame!=="bingo"){
     startHostedArcadeGame();
@@ -1016,6 +1127,9 @@ function startSoloGame(){
 }
 function startGameScreen(){
   show("gameScreen");
+  confirmIndex=null;
+  clearTimeout(confirmTimer);
+  requestGameWakeLock();
   $("winnerOverlay").classList.add("hidden");
   $("winnerRestartBtn").disabled=false;
   $("winnerRestartBtn").textContent="🔄 Jogar novamente";
@@ -1043,18 +1157,39 @@ function renderBoard(){
       const hidden = !ico.getBoundingClientRect().width || style.display==="none";
       if(hidden){ico.style.display="none";fb.style.display="inline";}
     },1200);
+    if(confirmIndex===index && !selected.has(index)){
+      btn.classList.add("confirming");
+      btn.querySelector(".tile-name").textContent="Toque de novo para confirmar";
+    }
     btn.addEventListener("click",()=>{
       if(gameOver)return;
-      selected.has(index)?selected.delete(index):selected.add(index);
-      renderBoard();updateGame();sendProgress();
+      if(selected.has(index)){
+        selected.delete(index);confirmIndex=null;clearTimeout(confirmTimer);
+        renderBoard();updateGame();sendProgress();return;
+      }
+      if(confirmIndex!==index){
+        confirmIndex=index;clearTimeout(confirmTimer);
+        confirmTimer=setTimeout(()=>{confirmIndex=null;renderBoard()},2500);
+        renderBoard();return;
+      }
+      confirmIndex=null;clearTimeout(confirmTimer);
+      selected.add(index);renderBoard();updateGame();sendProgress();
     });
     $("board").appendChild(btn);
   });
 }
 function sendProgress(){
-  if(mode==="host") broadcastProgress();
-  else if(mode==="join"&&hostConnection&&hostConnection.open) hostConnection.send({type:"progress",name:playerName,count:selected.size});
-  else renderScores([{name:playerName||"Você",count:selected.size}]);
+  const s=$("syncState");
+  if(mode==="host"){
+    broadcastProgress();
+    if(s){s.textContent="✓ Registrado na partida";s.className="sync-state ok";}
+  }else if(mode==="join"&&hostConnection&&hostConnection.open){
+    if(s){s.textContent="Enviando...";s.className="sync-state wait";}
+    hostConnection.send({type:"bingoMark",name:playerName,count:selected.size});
+  }else{
+    renderScores([{name:playerName||"Você",count:selected.size}]);
+    if(s&&mode!=="solo"){s.textContent="⚠️ Aguardando conexão";s.className="sync-state wait";}
+  }
 }
 function updateGame(){
   const complete=completedLines();
@@ -1066,7 +1201,7 @@ function updateGame(){
     $("status").textContent=goal==="full"?"🎉 CARTELA CHEIA! Você encontrou todos os itens!":"🎉 BINGO! Você completou uma linha, coluna ou diagonal!";
     if(!hasWon&&!gameOver){
       hasWon=true;gameOver=true;
-      if(mode==="host"){broadcast({type:"winner",name:playerName});endGame(playerName)}
+      if(mode==="host"){lastKnownState={winner:playerName};broadcast({type:"winner",name:playerName});endGame(playerName)}
       else if(mode==="join"&&hostConnection&&hostConnection.open){hostConnection.send({type:"bingo",name:playerName});endGame(playerName)}
       else endGame(playerName||"Você");
     }
@@ -1233,6 +1368,7 @@ $("winnerRestartBtn").addEventListener("click",()=>{
 
 $("winnerCloseBtn").addEventListener("click",()=>$("winnerOverlay").classList.add("hidden"));
 $("winnerHomeBtn").addEventListener("click",()=>{
+  releaseGameWakeLock();
   $("winnerOverlay").classList.add("hidden");
   stopMusic();
   gameOver=false;hasWon=false;selected=new Set();
@@ -1320,7 +1456,7 @@ $("scanQrBtn").addEventListener("click", async ()=>{
 
 $("scannerCloseBtn").addEventListener("click", stopQrScanner);
 
-const CURRENT_VERSION = "3.0";
+const CURRENT_VERSION = "3.2";
 let autoUpdating = false;
 
 function isMatchActive(){
@@ -1573,6 +1709,7 @@ function finishHostedArcade(winnerKey){
 
   gameOver=true;
   arcadeState.winner=(arcadeState.names&&arcadeState.names[winnerKey])||"Jogador";
+  lastKnownState={winner:arcadeState.winner};
   arcadeState.locked=true;
 
   broadcast({type:"arcadeState",state:arcadeState});
@@ -1724,17 +1861,45 @@ function renderArcadeMultiplayer(){
     const done=new Set(arcadeState.marks&&arcadeState.marks[me]||[]);
 
     stage.innerHTML=`<div class="treasure-list">${
-      arcadeState.items.map((it,i)=>`
-        <button class="treasure-item ${done.has(i)?"done":""}" data-i="${i}" type="button" ${gameOver?"disabled":""}>
-          <span class="e">${it[1]}</span><span>${escapeHtml(it[0])}</span>
-        </button>`
-      ).join("")
+      arcadeState.items.map((it,i)=>{
+        const armed=treasureConfirmIndex===i && !done.has(i);
+        return `
+        <button class="treasure-item ${done.has(i)?"done":""} ${armed?"confirming":""}" data-i="${i}" type="button" ${gameOver?"disabled":""}>
+          <span class="e">${it[1]}</span>
+          <span>${armed?"Toque de novo para confirmar":escapeHtml(it[0])}</span>
+        </button>`;
+      }).join("")
     }</div>`;
 
     stage.querySelectorAll(".treasure-item").forEach(btn=>{
       btn.onclick=()=>{
+        const i=Number(btn.dataset.i);
         vibrate();
-        sendTreasureToggle(Number(btn.dataset.i));
+
+        // Already marked: one tap removes/corrects.
+        if(done.has(i)){
+          treasureConfirmIndex=null;
+          clearTimeout(treasureConfirmTimer);
+          sendTreasureToggle(i);
+          return;
+        }
+
+        // First tap arms.
+        if(treasureConfirmIndex!==i){
+          treasureConfirmIndex=i;
+          clearTimeout(treasureConfirmTimer);
+          treasureConfirmTimer=setTimeout(()=>{
+            treasureConfirmIndex=null;
+            renderArcadeMultiplayer();
+          },2500);
+          renderArcadeMultiplayer();
+          return;
+        }
+
+        // Second tap confirms.
+        treasureConfirmIndex=null;
+        clearTimeout(treasureConfirmTimer);
+        sendTreasureToggle(i);
       };
     });
   }
@@ -1790,6 +1955,9 @@ function arcadeWin(label){
 }
 
 function startArcadeGame(){
+  requestGameWakeLock();
+  treasureConfirmIndex=null;
+  clearTimeout(treasureConfirmTimer);
   arcadePoints=0;
   arcadeIndex=0;
   arcadeDone=new Set();
@@ -1833,13 +2001,41 @@ function renderArcade(){
     $("arcadeSubtitle").textContent="Encontre os 10 itens";
     const list=arcadeItems.slice(0,10);
     score.innerHTML=`<span class="score-pill">🔎 ${arcadeDone.size}/10</span>`;
-    stage.innerHTML=`<div class="treasure-list">${list.map((it,i)=>`
-      <button class="treasure-item ${arcadeDone.has(i)?"done":""}" data-i="${i}" type="button">
-        <span class="e">${it[1]}</span><span>${escapeHtml(it[0])}</span>
-      </button>`).join("")}</div>`;
+    stage.innerHTML=`<div class="treasure-list">${list.map((it,i)=>{
+      const armed=treasureConfirmIndex===i && !arcadeDone.has(i);
+      return `
+      <button class="treasure-item ${arcadeDone.has(i)?"done":""} ${armed?"confirming":""}" data-i="${i}" type="button">
+        <span class="e">${it[1]}</span><span>${armed?"Toque de novo para confirmar":escapeHtml(it[0])}</span>
+      </button>`;
+    }).join("")}</div>`;
     stage.querySelectorAll(".treasure-item").forEach(b=>b.onclick=()=>{
       const i=+b.dataset.i;
-      if(arcadeDone.has(i))arcadeDone.delete(i);else{arcadeDone.add(i);vibrate();}
+
+      if(arcadeDone.has(i)){
+        arcadeDone.delete(i);
+        treasureConfirmIndex=null;
+        clearTimeout(treasureConfirmTimer);
+        renderArcade();
+        return;
+      }
+
+      if(treasureConfirmIndex!==i){
+        treasureConfirmIndex=i;
+        clearTimeout(treasureConfirmTimer);
+        treasureConfirmTimer=setTimeout(()=>{
+          treasureConfirmIndex=null;
+          renderArcade();
+        },2500);
+        vibrate();
+        renderArcade();
+        return;
+      }
+
+      treasureConfirmIndex=null;
+      clearTimeout(treasureConfirmTimer);
+      arcadeDone.add(i);
+      vibrate();
+
       if(arcadeDone.size>=10){arcadeWin("TESOURO COMPLETO!");return;}
       renderArcade();
     });
@@ -1870,7 +2066,7 @@ function renderArcade(){
   }
 }
 
-$("arcadeBackBtn").addEventListener("click",()=>{gameOver=false;show("homeScreen")});
+$("arcadeBackBtn").addEventListener("click",()=>{releaseGameWakeLock();gameOver=false;show("homeScreen")});
 $("arcadeMusicBtn").addEventListener("click",()=>$("musicBtn")?.click());
 
 
@@ -1952,5 +2148,6 @@ if("serviceWorker" in navigator){
 }
 
 </script>
+<div id="versionBadge" class="version-badge">Bingo da Rua • v3.2</div>
 </body>
 </html>
